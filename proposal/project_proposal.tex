@@ -1,0 +1,236 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.95in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multicol}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage[colorlinks=true,linkcolor=Primary,citecolor=Primary,urlcolor=Secondary]{hyperref}
+\usepackage[most]{tcolorbox}
+
+\definecolor{Primary}{HTML}{2C5F52}
+\definecolor{Secondary}{HTML}{B8860B}
+\definecolor{ProblemBg}{HTML}{FAF7F0}
+\definecolor{TitleBg}{HTML}{1F4037}
+\colorlet{Accent}{Primary}
+
+\newcommand{\Course}{COMPSCI 566}
+\newcommand{\Assignment}{Project Proposal}
+\newcommand{\ProjectTitle}{Monocular Depth Estimation: Benchmarking and a Defocus-Informed Refinement}
+\newcommand{\Name}{Dimitri Chrysafis}
+\newcommand{\Date}{\today}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\linespread{1.0}
+\setlist[enumerate]{label=\textbf{\arabic*.}, leftmargin=*, itemsep=0.25em, topsep=0.25em}
+\setlist[itemize]{leftmargin=*, itemsep=0.1em, topsep=0.1em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\textcolor{Primary}{\Name}}
+\chead{\textcolor{Primary}{\Course}}
+\rhead{\textcolor{Primary}{\Assignment}}
+\cfoot{\textcolor{Primary!85!black}{Page \thepage\ of \pageref{LastPage}}}
+\setlength{\headheight}{24pt}
+\renewcommand{\headrulewidth}{0.7pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{Primary!55}\leaders\hrule height \headrulewidth\hfill}}
+
+\tcbset{
+  hwbox/.style={
+    enhanced,
+    breakable,
+    colback=ProblemBg,
+    colframe=Primary!85!black,
+    boxrule=0.85pt,
+    arc=2mm,
+    left=2.6mm,
+    right=2.6mm,
+    top=1.8mm,
+    bottom=1.8mm,
+    before skip=4pt,
+    after skip=4pt,
+    fonttitle=\bfseries,
+    coltitle=Primary!95!black,
+    attach boxed title to top left={xshift=2mm,yshift*=-2mm},
+    boxed title style={
+      colback=Secondary!18,
+      colframe=Primary!80!black,
+      boxrule=0.8pt,
+      arc=1mm,
+      left=1.5mm,
+      right=1.5mm,
+      top=0.8mm,
+      bottom=0.8mm,
+    },
+  },
+}
+\newtcolorbox{proposalbox}[2][]{hwbox, title={#2}, #1}
+
+\begin{document}
+
+\begin{tcolorbox}[
+  enhanced,
+  arc=2.5mm,
+  boxrule=0pt,
+  colback=TitleBg,
+  colframe=TitleBg,
+  borderline south={1.5pt}{0pt}{Secondary},
+  title={\textcolor{white}{\Assignment\ \textbullet\ \Date}},
+  coltitle=white,
+  fonttitle=\bfseries,
+  before skip=0pt,
+  after skip=5pt
+]
+  {\color{white}
+  \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}ll}
+    \textbf{Submitted by:} \Name & \textbf{Course:} \Course
+  \end{tabular*}\\[3pt]
+  {\color{white}\textbf{\ProjectTitle}}
+  }
+\end{tcolorbox}
+
+\begin{proposalbox}{Team Members}
+\begin{minipage}[t]{0.44\textwidth}
+\begin{tcolorbox}[enhanced, arc=1.5mm, boxrule=0.7pt, colback=white, colframe=Primary!70!black, left=2mm, right=2mm, top=1.5mm, bottom=1.5mm]
+\centering\textbf{Dimitri Chrysafis}\\[1pt]
+NetID: chrysafis
+\end{tcolorbox}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.44\textwidth}
+\begin{tcolorbox}[enhanced, arc=1.5mm, boxrule=0.7pt, colback=white, colframe=Primary!70!black, left=2mm, right=2mm, top=1.5mm, bottom=1.5mm]
+\centering\textbf{Vincent Zhou}\\[1pt]
+NetID: vzhou2
+\end{tcolorbox}
+\end{minipage}
+
+\smallskip
+{\small \textbf{Roles:} baselines + evaluation (Dimitri Chrysafis); DFD, refinement, and webpage (Vincent Zhou). Both members share writing, experiments, and the presentation.}
+\end{proposalbox}
+
+\begin{proposalbox}{Problem Description and Motivation}
+Given one RGB image of a static scene, predict a dense depth map: the camera-to-scene distance behind every pixel. The problem is ill-posed; in particular, scale is ambiguous, since a small nearby scene and a large distant scene can produce nearly identical images. Learned models therefore predict relative depth, defined only up to an affine transform of inverse depth, $z = 1/(a\,d + b)$.
+
+Defocus is the one monocular cue with absolute scale, because it is governed by lens physics. Under the thin-lens model, a point at depth $z$ produces a Gaussian point-spread of standard deviation
+\[
+\sigma(z) = k \left| 1 - \frac{z_f}{z} \right|, \qquad k = \frac{f_{\mathrm{px}}\, f}{2N\,(z_f - f)},
+\]
+where $f_{\mathrm{px}}$ is the focal length in pixels, $f$ the physical focal length, $N$ the f-number, and $z_f$ the focus distance. Goal: accurate depth from a single image, and metric-scale depth from a short focal stack, by fusing a learned prior with this physical cue.
+
+Why it matters: depth turns ordinary cameras into 3D sensors (portrait mode, drones, robot navigation, AR). It sits on this course's spine (image formation, focus/defocus, stereo, 3D reconstruction), and its evaluation is standardized (AbsRel, RMSE, $\delta$ thresholds, scale-and-shift alignment), so results are measurable rather than demo-grade. We are interested in it because defocus gives a rare physical handle on absolute scale that learned models discard, making the two directions naturally complementary.
+\end{proposalbox}
+
+\begin{proposalbox}{State of the Art}
+\textbf{Learned.} MiDaS and DPT established scale-invariant mixed-dataset training with strong zero-shot transfer [1,2]; Depth Anything scaled the recipe to 62M unlabeled images [3]; Depth Anything V2 trains on synthetic labels and offers 25M--1.3B models, more than 10$\times$ faster than diffusion-based Marigold [4,5]; ZoeDepth adds metric heads [6]; Monodepth2 is the standard self-supervised baseline [7]. All output affine-invariant relative depth and are trained to be blur-robust, ignoring the cue that encodes scale.
+
+\textbf{Classical.} Depth from defocus (DFD) recovers metric depth from local blur via the thin-lens model [8,9]; deep DFD learns from focal stacks [10,11]; stereo matching (SGM) gives geometric depth from two views [12]. DFD needs controlled stacks, texture, and accurate calibration, and fails where learned priors are strongest. Existing methods are thus either relative but robust or metric but brittle. We fuse them at test time: defocus physics puts a zero-shot prediction on a metric scale, with no retraining.
+\end{proposalbox}
+
+\begin{proposalbox}{Approach: Re-implementation plus a New Refinement}
+\textbf{Phase 1: re-implementation (baselines).}
+\begin{itemize}
+  \item DA-V2 (ViT-S, 25M) zero-shot on NYU-Depth v2 and DDFF-12, scored after least-squares scale-and-shift alignment.
+  \item Classical DFD from scratch: focus measure (modified Laplacian / Tenengrad) over a focal stack, converted to depth with the thin-lens model; scored on DDFF-12.
+  \item Stretch: SGM stereo baseline on standard pairs [12].
+\end{itemize}
+
+\textbf{Phase 2: defocus-informed refinement (new).} From DA-V2's relative depth $\hat{d}$ and a focal stack, estimate per-pixel blur $\hat{\sigma}$ (Laplacian energy across focus settings). Solve for a metric depth field
+\[
+z = \frac{1}{s\,\hat{d} + t + r(\mathbf{x})},
+\]
+an affine rescale plus a smooth residual $r$, by minimizing
+\[
+\sum_{\mathbf{x}} \rho\bigl(\sigma(z(\mathbf{x})) - \hat{\sigma}(\mathbf{x})\bigr) + \lambda \lVert \nabla r \rVert^2,
+\]
+with $\rho$ a robust (Huber) loss. The optimization is per image at test time: no retraining, a few hundred gradient steps, initialized from the network and the DFD estimate.
+
+\textbf{Why it should work.} The failure modes are complementary: the network gives dense structure where texture is weak but no scale; defocus gives absolute scale but is noisy. The network's output family (affine-invariant inverse depth) is exactly what blur data constrains to metric scale. Blur noise and PSF mismatch are handled with a robust loss and multi-scale estimation. If refinement underperforms, the benchmark and error analysis stand alone.
+
+\begin{center}
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw=Primary!70!black, fill=ProblemBg, rounded corners=1.2mm, inner sep=1.4mm, minimum height=6mm, align=center},
+  io/.style={box, fill=white},
+  arr/.style={-{Stealth[length=1.6mm]}, draw=Primary!85!black, semithick}
+]
+\node[io] (img) at (0,0) {image or\\focal stack};
+\node[box] (da) at (3.3,0) {Depth Anything V2\\(frozen)};
+\node[box] (rel) at (6.4,0) {relative\\depth $\hat{d}$};
+\node[box] (ref) at (9.6,0) {defocus refinement\\$\sigma(z)\approx\hat{\sigma}$};
+\node[box] (met) at (12.8,0) {metric depth\\map $z$};
+\node[io] (fs) at (0,-1.5) {focal stack};
+\node[box] (blur) at (6.4,-1.5) {local blur\\estimate $\hat{\sigma}$};
+\node[box] (base) at (9.6,-1.5) {classical baselines\\DFD, stereo};
+\node[box] (bench) at (12.8,-1.5) {benchmark\\NYUv2 / DDFF-12};
+\draw[arr] (img) -- (da);
+\draw[arr] (da) -- (rel);
+\draw[arr] (rel) -- (ref);
+\draw[arr] (ref) -- (met);
+\draw[arr] (fs) -- (blur);
+\draw[arr] (blur) -- (ref);
+\draw[arr] (base) -- (bench);
+\draw[arr] (met) -- (bench);
+\end{tikzpicture}
+
+{\scriptsize\itshape Pipeline. Relative depth from a frozen zero-shot model plus blur from the focal stack; the refinement enforces thin-lens consistency to output metric depth; every stage is scored on standard benchmarks.}
+\end{center}
+\end{proposalbox}
+
+\begin{proposalbox}{Evaluation Plan and Timeline}
+\textbf{Metrics:} AbsRel, SqRel, RMSE, RMSE-log, $\delta < 1.25, 1.25^2, 1.25^3$; the refinement also reports metric scale error $\mathrm{mean}\,|\log(z_{\mathrm{pred}}/z_{\mathrm{gt}})|$ and blur-consistency error.
+
+\textbf{Data:} NYU-Depth v2 (standard test split [13]); DDFF 12-Scene (real focal stacks with ground truth [10]); our own focus stacks for qualitative results.
+
+\textbf{Comparisons and ablations:} DA-V2 raw and affine-aligned; classical DFD; full refinement; ablations (no residual, no smoothness, 1 vs.\ 3 vs.\ 5 frames, parameter sensitivity, runtime). \textbf{Results:} benchmark table of learned vs.\ classical depth; refinement gains (accuracy and scale error); error maps and qualitative stacks; a project webpage with code.
+
+\begin{center}
+\begin{tabular}{@{}p{0.235\textwidth}p{0.70\textwidth}@{}}
+\toprule
+\textbf{Dates} & \textbf{Milestone} \\
+\midrule
+Sep 29 & Proposal submitted. \\
+Oct 6--14 & DA-V2 reproduced; alignment and NYUv2 harness; DFD started. \\
+Oct 15--27 & DFD baseline done; error analysis; midterm report. \\
+Oct 29 & Midterm report (Phase 1 complete). \\
+Oct 30--Nov 13 & Refinement implemented; experiments; ablations. \\
+Nov 14--24 & Own captures; final experiments; webpage. \\
+Nov 25--Dec 1 & Presentation prep. \\
+Dec 1--10 & Presentation; webpage and code final on Dec 10. \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{proposalbox}
+
+\begin{proposalbox}{References}
+{\scriptsize
+\begin{multicols}{2}
+\begin{enumerate}[label={[\arabic*]}, leftmargin=1.7em, itemsep=0.05em, topsep=0.1em]
+  \item R. Ranftl, K. Lasinger, D. Hafner, K. Schindler, V. Koltun. Towards Robust Monocular Depth Estimation: Mixing Datasets for Zero-Shot Cross-Dataset Transfer. \textit{TPAMI}, 2022.
+  \item R. Ranftl, A. Bochkovskiy, V. Koltun. Vision Transformers for Dense Prediction. \textit{ICCV}, 2021.
+  \item L. Yang, B. Kang, Z. Huang, X. Xu, J. Feng, H. Zhao. Depth Anything: Unleashing the Power of Large-Scale Unlabeled Data. \textit{CVPR}, 2024.
+  \item L. Yang, B. Kang, Z. Huang, Z. Zhao, X. Xu, J. Feng, H. Zhao. Depth Anything V2. \textit{NeurIPS}, 2024.
+  \item B. Ke, A. Obukhov, S. Huang, N. Metzger, R. C. Daudt, K. Schindler. Repurposing Diffusion-Based Image Generators for Monocular Depth Estimation. \textit{CVPR}, 2024.
+  \item S. F. Bhat, R. Birkl, D. Wofk, P. Wonka, M. M\"uller. ZoeDepth: Zero-shot Transfer by Combining Relative and Metric Depth. \textit{arXiv}, 2023.
+  \item C. Godard, O. Mac Aodha, M. Firman, G. J. Brostow. Digging Into Self-Supervised Monocular Depth Estimation. \textit{ICCV}, 2019.
+  \item A. P. Pentland. A New Sense for Depth of Field. \textit{TPAMI}, 1987.
+  \item M. Subbarao, G. Surya. Depth from Defocus: A Spatial Domain Approach. \textit{IJCV}, 1994.
+  \item C. Hazirbas, S. Soyer, M. C. Staab, L. Leal-Taix\'e, D. Cremers. Deep Depth From Focus. \textit{ACCV}, 2018.
+  \item M. Maximov, K. Galim, L. Leal-Taix\'e. Focus on Defocus: Bridging the Synthetic to Real Domain Gap for Depth Estimation. \textit{CVPR}, 2020.
+  \item H. Hirschm\"uller. Stereo Processing by Semiglobal Matching and Mutual Information. \textit{TPAMI}, 2008.
+  \item N. Silberman, D. Hoiem, P. Kohli, R. Fergus. Indoor Segmentation and Support Inference from RGBD Images. \textit{ECCV}, 2012.
+\end{enumerate}
+\end{multicols}
+}
+\end{proposalbox}
+
+\end{document}
