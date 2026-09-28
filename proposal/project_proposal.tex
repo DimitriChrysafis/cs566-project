@@ -115,46 +115,62 @@ NetID: vzhou2
 \end{minipage}
 
 \smallskip
-{\small \textbf{Roles:} baselines + evaluation (Dimitri Chrysafis); DFD, refinement, and webpage (Vincent Zhou). Both members share writing, experiments, and the presentation.}
+{\small \textbf{Roles:} baselines and evaluation (Dimitri Chrysafis); DFD, refinement, and webpage (Vincent Zhou). Both of us share the writing, experiments, and the presentation.}
 \end{proposalbox}
 
-\begin{proposalbox}{Problem Description and Motivation}
-Given one RGB image of a static scene, predict a dense depth map: the camera-to-scene distance behind every pixel. The problem is ill-posed; in particular, scale is ambiguous, since a small nearby scene and a large distant scene can produce nearly identical images. Learned models therefore predict relative depth, defined only up to an affine transform of inverse depth, $z = 1/(a\,d + b)$.
+\begin{proposalbox}{The Problem}
+Take a photo of a chair. Nothing in the pixels tells you whether it is a real chair two meters away or a toy chair on a desk, because shrinking a scene and moving it closer leaves the image almost unchanged. That is the scale ambiguity at the center of monocular depth estimation. Our goal is a dense depth map from one RGB image, and for a short focal stack, depth in real units.
 
-Defocus is the one monocular cue with absolute scale, because it is governed by lens physics. Under the thin-lens model, a point at depth $z$ produces a Gaussian point-spread of standard deviation
+Learned models cope by giving up on scale. They predict relative depth, defined only up to an affine transform of inverse depth, $z = 1/(a\,d + b)$, and their training treats blur as noise rather than signal. But defocus is the one monocular cue that carries absolute scale, because it comes straight from lens physics. Under the thin-lens model, a point at depth $z$ produces a Gaussian point spread with standard deviation
 \[
 \sigma(z) = k \left| 1 - \frac{z_f}{z} \right|, \qquad k = \frac{f_{\mathrm{px}}\, f}{2N\,(z_f - f)},
 \]
-where $f_{\mathrm{px}}$ is the focal length in pixels, $f$ the physical focal length, $N$ the f-number, and $z_f$ the focus distance. Goal: accurate depth from a single image, and metric-scale depth from a short focal stack, by fusing a learned prior with this physical cue.
+where $f_{\mathrm{px}}$ is the focal length in pixels, $f$ the physical focal length, $N$ the f-number, and $z_f$ the focus distance. Measured blur is a direct function of depth in meters, and no other single-image cue gives that.
 
-Why it matters: depth turns ordinary cameras into 3D sensors (portrait mode, drones, robot navigation, AR). It sits on this course's spine (image formation, focus/defocus, stereo, 3D reconstruction), and its evaluation is standardized (AbsRel, RMSE, $\delta$ thresholds, scale-and-shift alignment), so results are measurable rather than demo-grade. We are interested in it because defocus gives a rare physical handle on absolute scale that learned models discard, making the two directions naturally complementary.
+We picked this topic for two reasons. Depth turns ordinary cameras into 3D sensors (portrait mode, AR, drones, robot navigation), and the problem sits where the course's optics (image formation, focus and defocus) meets modern learned models. It also has a clean scoreboard: the standard metrics (AbsRel, RMSE, $\delta$ thresholds) mean improvements are measurable, not anecdotal.
 \end{proposalbox}
 
 \begin{proposalbox}{State of the Art}
-\textbf{Learned.} MiDaS and DPT established scale-invariant mixed-dataset training with strong zero-shot transfer [1,2]; Depth Anything scaled the recipe to 62M unlabeled images [3]; Depth Anything V2 trains on synthetic labels and offers 25M--1.3B models, more than 10$\times$ faster than diffusion-based Marigold [4,5]; ZoeDepth adds metric heads [6]; Monodepth2 is the standard self-supervised baseline [7]. All output affine-invariant relative depth and are trained to be blur-robust, ignoring the cue that encodes scale.
+Monocular depth is largely solved in the relative sense. MiDaS [1] and DPT [2] trained across mixed datasets with a scale-invariant loss; Depth Anything [3] scaled the recipe to 62M unlabeled images; Depth Anything V2 [4] trains on synthetic labels and ships models from 25M to 1.3B parameters, more than 10$\times$ faster than the diffusion-based Marigold [5]. ZoeDepth [6] adds metric heads, and Monodepth2 [7] is the standard self-supervised baseline. All of them output affine-invariant inverse depth, and none of them uses defocus as a cue.
 
-\textbf{Classical.} Depth from defocus (DFD) recovers metric depth from local blur via the thin-lens model [8,9]; deep DFD learns from focal stacks [10,11]; stereo matching (SGM) gives geometric depth from two views [12]. DFD needs controlled stacks, texture, and accurate calibration, and fails where learned priors are strongest. Existing methods are thus either relative but robust or metric but brittle. We fuse them at test time: defocus physics puts a zero-shot prediction on a metric scale, with no retraining.
+Depth from defocus goes the other way. Pentland [8] and Subbarao [9] recover depth from local blur through the thin-lens model; deep DFD methods [10,11] learn the blur-to-depth mapping from focal stacks; SGM [12] instead uses geometry from two views. The catch is reliability. DFD needs texture, a controlled stack, and good calibration, and it breaks down exactly where the learned models are strongest.
+
+\begin{center}
+{\small
+\begin{tabular}{@{}p{0.30\textwidth}p{0.24\textwidth}p{0.38\textwidth}@{}}
+\toprule
+\textbf{Family} & \textbf{Output} & \textbf{Weak spot} \\
+\midrule
+Monocular learned [1--4,6,7] & relative depth & no metric scale by construction \\
+Depth from defocus [8--11] & metric depth & needs texture, a stack, calibration \\
+Stereo matching [12] & metric depth & needs two views; weak on textureless regions \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+Our plan takes the dense prediction from the first row and the scale from the second, at test time, with no retraining.
 \end{proposalbox}
 
-\begin{proposalbox}{Approach: Re-implementation plus a New Refinement}
-\textbf{Phase 1: re-implementation (baselines).}
+\begin{proposalbox}{Approach: Re-implement, Then Improve}
+Phase 1 is re-implementation, so every claim later has a number attached:
 \begin{itemize}
-  \item DA-V2 (ViT-S, 25M) zero-shot on NYU-Depth v2 and DDFF-12, scored after least-squares scale-and-shift alignment.
-  \item Classical DFD from scratch: focus measure (modified Laplacian / Tenengrad) over a focal stack, converted to depth with the thin-lens model; scored on DDFF-12.
-  \item Stretch: SGM stereo baseline on standard pairs [12].
+  \item DA-V2 (ViT-S, 25M) [4] zero-shot on NYU-Depth v2 and DDFF-12, scored after least-squares scale-and-shift alignment.
+  \item Classical DFD from scratch: a focus measure (modified Laplacian and Tenengrad) over a focal stack, converted to depth with the thin-lens model [8,9], scored on DDFF-12.
+  \item If time allows, an SGM stereo baseline [12] on the standard pairs.
 \end{itemize}
 
-\textbf{Phase 2: defocus-informed refinement (new).} From DA-V2's relative depth $\hat{d}$ and a focal stack, estimate per-pixel blur $\hat{\sigma}$ (Laplacian energy across focus settings). Solve for a metric depth field
+Phase 2 is the new part. We estimate per-pixel blur $\hat{\sigma}$ from the focal stack (Laplacian energy across focus settings) and solve for a metric depth field
 \[
 z = \frac{1}{s\,\hat{d} + t + r(\mathbf{x})},
 \]
-an affine rescale plus a smooth residual $r$, by minimizing
+an affine rescale of the network's relative depth $\hat{d}$ plus a smooth residual $r$, by minimizing
 \[
 \sum_{\mathbf{x}} \rho\bigl(\sigma(z(\mathbf{x})) - \hat{\sigma}(\mathbf{x})\bigr) + \lambda \lVert \nabla r \rVert^2,
 \]
-with $\rho$ a robust (Huber) loss. The optimization is per image at test time: no retraining, a few hundred gradient steps, initialized from the network and the DFD estimate.
+with $\rho$ a Huber loss. The residual matters because one global scale cannot fix every region at once; $r$ lets the blur data correct the network locally. The optimization runs per image at test time, a few hundred gradient steps, initialized from the network output and the DFD estimate. No retraining, no extra labels.
 
-\textbf{Why it should work.} The failure modes are complementary: the network gives dense structure where texture is weak but no scale; defocus gives absolute scale but is noisy. The network's output family (affine-invariant inverse depth) is exactly what blur data constrains to metric scale. Blur noise and PSF mismatch are handled with a robust loss and multi-scale estimation. If refinement underperforms, the benchmark and error analysis stand alone.
+The two sources fail in opposite places. The network is dense and stable but scale-free; defocus is scale-aware but noisy and helpless on textureless surfaces. The network's output family (affine-invariant inverse depth) is exactly what blur constrains, so the fit is well-posed wherever blur is measurable. And if the refinement does not pan out, the benchmark and error analysis still stand on their own.
 
 \begin{center}
 \begin{tikzpicture}[
@@ -182,30 +198,31 @@ with $\rho$ a robust (Huber) loss. The optimization is per image at test time: n
 \draw[arr] (met) -- (bench);
 \end{tikzpicture}
 
-{\scriptsize\itshape Pipeline. Relative depth from a frozen zero-shot model plus blur from the focal stack; the refinement enforces thin-lens consistency to output metric depth; every stage is scored on standard benchmarks.}
+{\scriptsize\itshape Relative depth from a frozen zero-shot model plus blur from the focal stack; the refinement enforces thin-lens consistency and outputs metric depth.}
 \end{center}
 \end{proposalbox}
 
-\begin{proposalbox}{Evaluation Plan and Timeline}
-\textbf{Metrics:} AbsRel, SqRel, RMSE, RMSE-log, $\delta < 1.25, 1.25^2, 1.25^3$; the refinement also reports metric scale error $\mathrm{mean}\,|\log(z_{\mathrm{pred}}/z_{\mathrm{gt}})|$ and blur-consistency error.
+\begin{proposalbox}{Evaluation and Plan}
+Metrics are AbsRel, SqRel, RMSE, RMSE-log, and the $\delta < 1.25, 1.25^2, 1.25^3$ thresholds; the refinement also reports metric scale error $\mathrm{mean}\,|\log(z_{\mathrm{pred}}/z_{\mathrm{gt}})|$ and a blur-consistency error.
 
-\textbf{Data:} NYU-Depth v2 (standard test split [13]); DDFF 12-Scene (real focal stacks with ground truth [10]); our own focus stacks for qualitative results.
+For data we use the 654-image NYU-Depth v2 test split [13], DDFF 12-Scene [10] for real focal stacks with ground truth, and our own phone captures for qualitative results.
 
-\textbf{Comparisons and ablations:} DA-V2 raw and affine-aligned; classical DFD; full refinement; ablations (no residual, no smoothness, 1 vs.\ 3 vs.\ 5 frames, parameter sensitivity, runtime). \textbf{Results:} benchmark table of learned vs.\ classical depth; refinement gains (accuracy and scale error); error maps and qualitative stacks; a project webpage with code.
+We compare DA-V2 raw and affine-aligned, classical DFD, and the full refinement. Ablations drop the residual, drop the smoothness term, and vary the frame count (1, 3, 5) and $\lambda$. Since the refinement optimizes per image, we also report runtime. The final results will be a benchmark table of learned vs.\ classical depth, the refinement's gain in accuracy and scale error, error maps and side-by-side stacks, and a project webpage with code.
 
+The concrete steps from here to December:
 \begin{center}
 \begin{tabular}{@{}p{0.235\textwidth}p{0.70\textwidth}@{}}
 \toprule
-\textbf{Dates} & \textbf{Milestone} \\
+\textbf{Dates} & \textbf{Steps} \\
 \midrule
 Sep 29 & Proposal submitted. \\
-Oct 6--14 & DA-V2 reproduced; alignment and NYUv2 harness; DFD started. \\
-Oct 15--27 & DFD baseline done; error analysis; midterm report. \\
-Oct 29 & Midterm report (Phase 1 complete). \\
-Oct 30--Nov 13 & Refinement implemented; experiments; ablations. \\
-Nov 14--24 & Own captures; final experiments; webpage. \\
-Nov 25--Dec 1 & Presentation prep. \\
-Dec 1--10 & Presentation; webpage and code final on Dec 10. \\
+Sep 30--Oct 6 & DA-V2 running on NYUv2; scale-and-shift alignment script; first baseline numbers. \\
+Oct 7--20 & DFD baseline on DDFF-12; error analysis for both baselines. \\
+Oct 21--29 & Write the midterm report (due Oct 29); freeze Phase 1 numbers. \\
+Oct 30--Nov 13 & Implement the refinement; ablations on residual, smoothness, frames, $\lambda$. \\
+Nov 14--24 & Capture our own focal stacks; final experiments; build the webpage. \\
+Nov 25--Dec 1 & Prepare the presentation. \\
+Dec 1--10 & Present; finalize webpage and code (Dec 10). \\
 \bottomrule
 \end{tabular}
 \end{center}
