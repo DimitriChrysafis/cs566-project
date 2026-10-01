@@ -3,4 +3,11 @@
 *.log
 *.out
 *.synctex.gz
-proposal/figures/
+*.fls
+*.fdb_latexmk
+__pycache__/
+*.pyc
+data/*
+!data/.gitkeep
+results/preds/
+results/figs/tmp/

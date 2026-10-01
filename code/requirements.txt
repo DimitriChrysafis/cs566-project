@@ -1,0 +1,12 @@
+numpy
+scipy
+matplotlib
+pillow
+scikit-image
+h5py
+opencv-python-headless
+torch
+transformers
+safetensors
+requests
+tqdm
