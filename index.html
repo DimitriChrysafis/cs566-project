@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monocular Depth Estimation: Benchmarking and a Defocus-Informed Refinement</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+<h1>Monocular Depth Estimation: Benchmarking and a Defocus-Informed Refinement</h1>
+<p class="authors">Dimitri Chrysafis (chrysafis) &middot; Vincent Zhou (vzhou2)</p>
+<p class="course">COMPSCI 566, Introduction to Computer Vision &middot; Fall 2026 &middot; UW&ndash;Madison</p>
+<nav>
+<a href="../proposal/project_proposal.pdf">proposal pdf</a><span class="sep">|</span><a href="assets/midterm.pdf">midterm pdf</a><span class="sep">|</span><a href="https://github.com/DimitriChrysafis/cs566-project">code</a><span class="sep">|</span><a href="assets/presentation.pdf">presentation</a>
+</nav>
+</header>
+
+<main>
+
+<h2>Abstract</h2>
+<p>Monocular depth estimation assigns a depth to each pixel of a single RGB image, but a single image does not determine absolute scale. This project benchmarks Depth Anything V2, a pretrained relative-depth model, against a classical depth-from-focus baseline that measures local sharpness across a focal stack. We then use confident focus measurements to fit an affine scale correction and a regularized local refinement, recovering metric depth where the stack supports it. Evaluation is on the NYU-Depth v2 test set, rendered synthetic scenes, and the DDFF 12-Scene dataset, reporting AbsRel, RMSE, and &delta;<sub>1</sub>.</p>
+
+<figure class="teaser">
+<svg viewBox="0 0 760 210" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pipeline: reference image feeds Depth Anything V2; focal stack feeds a focus estimate with confidence; both feed scale fitting and depth refinement">
+<defs>
+<marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0 0 L9 4.5 L0 9 z" fill="#2c5f52"/></marker>
+</defs>
+<g stroke="#2c5f52" stroke-width="1.5" fill="#ffffff">
+<rect x="20" y="25" width="200" height="58" rx="6"/>
+<rect x="280" y="25" width="200" height="58" rx="6"/>
+<rect x="20" y="128" width="200" height="58" rx="6"/>
+<rect x="280" y="128" width="200" height="58" rx="6"/>
+<rect x="540" y="76" width="200" height="58" rx="6" fill="#eaf1ee"/>
+</g>
+<line x1="220" y1="54" x2="274" y2="54" stroke="#2c5f52" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="220" y1="157" x2="274" y2="157" stroke="#2c5f52" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="480" y1="54" x2="534" y2="100" stroke="#2c5f52" stroke-width="1.5" marker-end="url(#arr)"/>
+<line x1="480" y1="157" x2="534" y2="110" stroke="#2c5f52" stroke-width="1.5" marker-end="url(#arr)"/>
+<g text-anchor="middle" font-size="15" fill="#222222">
+<text x="120" y="60">Reference image</text>
+<text x="380" y="50">Depth Anything V2</text>
+<text x="380" y="70" font-size="13" font-style="italic">relative depth d&#770;</text>
+<text x="120" y="163">Focal stack</text>
+<text x="380" y="153">Focus estimate <tspan font-style="italic">z</tspan><tspan baseline-shift="sub" font-size="11" font-style="italic">F</tspan></text>
+<text x="380" y="173" font-size="13" font-style="italic">and confidence w</text>
+<text x="640" y="100">Scale fitting and</text>
+<text x="640" y="120">depth refinement</text>
+</g>
+</svg>
+<figcaption>Fig. 1. Proposed combination of learned relative depth and focus measurements.</figcaption>
+</figure>
+
+<h2>Methods</h2>
+
+<h3>Learned baseline</h3>
+<p>The reference image is passed through Depth Anything V2 (ViT-S) using the published weights, without retraining. The model produces a relative inverse-depth map <i>d&#770;</i>(<b>x</b>) that captures scene structure but not absolute scale.</p>
+
+<h3>Depth from focus</h3>
+<p>A focal stack is captured from a fixed viewpoint at calibrated focus settings. At each pixel we measure sharpness across the stack with the modified Laplacian (Nayar and Nakagawa, 1994) and interpolate parabolically around the peak setting, giving a focus depth <i>z</i><sub><i>F</i></sub>(<b>x</b>). Flat or ambiguous focus curves receive low confidence <i>w</i>(<b>x</b>) &isin; [0, 1]; this occurs mainly on textureless surfaces and near depth boundaries.</p>
+
+<h3>Scale fitting and refinement</h3>
+<p>Confident focus measurements constrain an affine transformation of the predicted inverse depth plus a local correction <i>r</i>:</p>
+<p class="eq"><i>q</i>(<b>x</b>) = <i>s</i>&thinsp;<i>d&#770;</i>(<b>x</b>) + <i>t</i> + <i>r</i>(<b>x</b>),&emsp;<i>z</i>(<b>x</b>) = <i>q</i>(<b>x</b>)<sup>&minus;1</sup></p>
+<p class="eq">min<sub><i>s</i>,<i>t</i>,<i>r</i></sub>&thinsp;&sum;<sub><b>x</b></sub> <i>w</i>(<b>x</b>)&thinsp;&rho;(<i>q</i>(<b>x</b>) &minus; <i>z</i><sub><i>F</i></sub>(<b>x</b>)<sup>&minus;1</sup>) + &lambda;&thinsp;&sum;<sub><b>x</b></sub> ||&nabla;<i>r</i>(<b>x</b>)||<sup>2</sup> + &mu;&thinsp;&sum;<sub><b>x</b></sub> <i>r</i>(<b>x</b>)<sup>2</sup>,&emsp;<i>q</i>(<b>x</b>) &ge; &epsilon; &gt; 0</p>
+<p>Global scale (<i>s</i>, <i>t</i>) is fit first with <i>r</i> = 0, then local corrections are allowed. The Huber loss &rho; limits the influence of unreliable focus measurements; the penalties on &nabla;<i>r</i> and <i>r</i> discourage abrupt or large changes where focus evidence is weak. If the stack lacks sufficient reliable depth variation, the output remains relative depth and is marked uncalibrated.</p>
+
+<h2>Results</h2>
+
+<p>We report absolute relative error (AbsRel), RMSE, and &delta;<sub>1</sub>, the fraction of valid pixels satisfying max(<i>z</i>/<i>z</i><sub>gt</sub>, <i>z</i><sub>gt</sub>/<i>z</i>) &lt; 1.25. The single-image baseline is evaluated on the standard 654-image NYU-Depth v2 test set. Focal-stack experiments use rendered synthetic scenes and DDFF 12-Scene, subject to verification of its labels, calibration, and depth units. Metric predictions are scored without ground-truth alignment; aligned scores are reported separately.</p>
+
+<p class="tabcap">Table 1. NYU-Depth v2 test set (654 images).</p>
+<table>
+<thead><tr><th>Method</th><th class="num">AbsRel</th><th class="num">RMSE</th><th class="num">&delta;<sub>1</sub></th></tr></thead>
+<tbody>
+<!--RESULTS:NYU-->
+<tr><td>DA-V2 (scale+shift)</td><td class="num">0.095</td><td class="num">0.431</td><td class="num">0.912</td></tr>
+<tr><td>DA-V2 (median scale)</td><td class="num">0.507</td><td class="num">2.376</td><td class="num">0.376</td></tr>
+<!--/RESULTS:NYU-->
+</tbody>
+</table>
+
+<p class="tabcap">Table 2. Focal-stack experiments on rendered synthetic scenes and DDFF 12-Scene.</p>
+<table>
+<thead><tr><th>Method</th><th class="num">AbsRel</th><th class="num">RMSE</th><th class="num">&delta;<sub>1</sub></th></tr></thead>
+<tbody>
+<!--RESULTS:SYNTH-->
+<tr><td>Focus baseline</td><td class="num">0.202</td><td class="num">1.521</td><td class="num">0.706</td></tr>
+<tr><td>Aligned DA-V2</td><td class="num">0.255</td><td class="num">1.296</td><td class="num">0.567</td></tr>
+<tr><td>DA-V2 + scale fit</td><td class="num">0.284</td><td class="num">1.508</td><td class="num">0.502</td></tr>
+<tr><td>Full refinement</td><td class="num">0.248</td><td class="num">1.530</td><td class="num">0.560</td></tr>
+<!--/RESULTS:SYNTH-->
+</tbody>
+</table>
+
+<figure>
+<img src="assets/nyu_qualitative.png" alt="NYUv2 qualitative comparison">
+<figcaption>Fig. 2. NYU-Depth v2 test images: rgb, ground truth, DA-V2 prediction after scale+shift alignment, relative error.</figcaption>
+</figure>
+
+<figure>
+<img src="assets/synth_refinement.png" alt="Synthetic focal-stack refinement">
+<figcaption>Fig. 3. Synthetic corridor scene: reference frame, focus estimate and confidence, refined depth, relative error. Focus confidence is low on the flat ceiling and high on the textured walls; the refinement keeps the learned shape where the stack is uninformative.</figcaption>
+</figure>
+
+<figure>
+<img src="assets/failure_cases.png" alt="Failure cases">
+<figcaption>Fig. 4. Failure case: a slanted scene where the learned prediction and focus measurements disagree. The scale fit is rejected and the output falls back to relative depth, flagged uncalibrated.</figcaption>
+</figure>
+
+<figure>
+<img src="assets/ddff_qualitative.png" alt="DDFF real focal stack result">
+<figcaption>Fig. 5. DDFF 12-Scene test stack (Lytro Illum refocused frames): sharpest frame, focus estimate, confidence, refined depth. The released test split ships no ground truth and the measured confidences are low, so we report qualitative output only.</figcaption>
+</figure>
+
+<p>One note on the DDFF results: the public test archive contains focal stacks but no registered depth (the official ground truth was withheld for the benchmark server), and the per-frame focus distances are not recorded, so we reconstruct them from the refocus geometry in the paper. Quantitative numbers on real stacks are therefore not meaningful; the qualitative panels above still exercise the full pipeline on camera-captured data. Quantitative evaluation of the refinement uses the rendered scenes, where the true depth and focus distances are known exactly.</p>
+
+<h2>Reports</h2>
+<ul>
+<li>Project proposal: <a href="../proposal/project_proposal.pdf">project_proposal.pdf</a> (also under proposal/ in the repository).</li>
+<li>Midterm report: <a href="assets/midterm.pdf">midterm.pdf</a>; due October 29, posted here after submission.</li>
+</ul>
+
+<h2>Code</h2>
+<p>Source available on GitHub: <a href="https://github.com/DimitriChrysafis/cs566-project">github.com/DimitriChrysafis/cs566-project</a>. The repository contains the benchmark library under code/depthbench (data loaders, synthetic stack renderer, depth-from-focus, DA-V2 wrapper, scale fitting, metrics) and runnable experiment scripts under code/experiments.</p>
+<p>Download: <a href="https://github.com/DimitriChrysafis/cs566-project/archive/refs/heads/main.zip">source archive (.zip)</a>.</p>
+
+<h2>Log</h2>
+<ul class="log">
+<li><span class="date">Oct 1</span>Project scaffold: repository layout, synthetic focal-stack renderer, experiment entry points.</li>
+<li><span class="date">Oct 2</span>NYU-Depth v2 test split verified; DA-V2 ViT-S weights running on test images.</li>
+<li><span class="date">Oct 6</span>DA-V2 baseline producing predictions; modified-Laplacian focus baseline running on synthetic stacks.</li>
+<li><span class="date">Next</span>Focus-baseline analysis on real stacks; midterm report due Oct 29.</li>
+</ul>
+
+</main>
+
+<footer>
+<p><a href="https://pages.cs.wisc.edu/~mohitg/courses/CS566/">COMPSCI 566 course page</a> &middot; Introduction to Computer Vision &middot; University of Wisconsin&ndash;Madison &middot; Fall 2026</p>
+</footer>
+
+</body>
+</html>
