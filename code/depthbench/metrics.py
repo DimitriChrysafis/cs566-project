@@ -67,9 +67,12 @@ def summarize(rows):
     out = {"n_scenes": len(rows)}
     if not rows:
         return out
-    keys = [k for k in rows[0] if k not in ("scene", "method", "split", "param")]
+    keys = [k for k in rows[0] if k not in ("scene", "method", "split", "param", "set")]
     for k in keys:
-        vals = np.array([r[k] for r in rows if k in r], dtype=np.float64)
+        try:
+            vals = np.array([r[k] for r in rows if k in r], dtype=np.float64)
+        except (TypeError, ValueError):
+            continue
         vals = vals[np.isfinite(vals)]
         if vals.size:
             out[k] = float(vals.mean())

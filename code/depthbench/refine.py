@@ -41,8 +41,23 @@ def _robust_sigma(res):
     return max(float(np.sqrt(np.mean(res * res))), 1e-6)
 
 
-def fit_scale(d_inv, z_f, w, mask=None, huber_delta=1.345, iters=10, min_conf_cov=0.02):
-    """IRLS for s,t on confident focus pixels with r = 0."""
+def norm_conf(w, m, q=98):
+    """rescale confidence by its high percentile over valid pixels so
+    stacks with a low absolute noise floor still reach the data term.
+    preserves zeros."""
+    wv = np.asarray(w, np.float64)[m]
+    hi = np.percentile(wv, q) if wv.size else 0.0
+    if hi <= 1e-6:
+        return np.asarray(w, np.float64)
+    return np.clip(np.asarray(w, np.float64) / hi, 0, 1)
+
+
+def fit_scale(d_inv, z_f, w, mask=None, huber_delta=1.345, iters=10,
+              min_conf_cov=0.02, trim=0.10):
+    """IRLS for s,t on confident focus pixels with r = 0.
+    after convergence the largest `trim` fraction of residuals is dropped
+    and the fit is redone once - handles confident-but-wrong focus returns
+    (defocus veiling at occlusion boundaries)."""
     d_inv = np.asarray(d_inv, np.float64)
     z_f = np.asarray(z_f, np.float64)
     w = np.asarray(w, np.float64)
@@ -52,18 +67,31 @@ def fit_scale(d_inv, z_f, w, mask=None, huber_delta=1.345, iters=10, min_conf_co
     s, t = 1.0, 0.0
     ok = coverage >= min_conf_cov and m.sum() >= 8
     if ok:
+        keep = np.ones(a.size, bool)
         for _ in range(iters):
-            res = a * s + t - y
+            res = a[keep] * s + t - y[keep]
             sig = _robust_sigma(res)
-            u = wv * _huber_w(res, huber_delta, sig)
-            sa, s1 = np.sum(u * a), np.sum(u)
-            A = np.array([[np.sum(u * a * a), sa], [sa, s1]])
-            b = np.array([np.sum(u * a * y), np.sum(u * y)])
+            u = wv[keep] * _huber_w(res, huber_delta, sig)
+            sa, s1 = np.sum(u * a[keep]), np.sum(u)
+            A = np.array([[np.sum(u * a[keep] * a[keep]), sa], [sa, s1]])
+            b = np.array([np.sum(u * a[keep] * y[keep]), np.sum(u * y[keep])])
             try:
                 s, t = np.linalg.solve(A, b)
             except np.linalg.LinAlgError:
                 ok = False
                 break
+        if ok and trim > 0 and keep.sum() > 16:
+            res = np.abs(a * s + t - y)
+            keep = res <= np.quantile(res[keep], 1 - trim)
+            res = a[keep] * s + t - y[keep]
+            u = wv[keep]
+            sa, s1 = np.sum(u * a[keep]), np.sum(u)
+            A = np.array([[np.sum(u * a[keep] * a[keep]), sa], [sa, s1]])
+            b = np.array([np.sum(u * a[keep] * y[keep]), np.sum(u * y[keep])])
+            try:
+                s, t = np.linalg.solve(A, b)
+            except np.linalg.LinAlgError:
+                ok = False
         if s <= 0:  # degenerate: d anticorrelates -> bounded t-only fallback
             s, t = 0.0, float(np.sum(wv * y) / np.sum(wv))
             ok = False
@@ -83,13 +111,18 @@ def _laplacian(h, w):
 
 
 def refine(d_inv, z_f, w, lam=3.0, mu=1e-2, huber_delta=1.345, cg_iters=400,
-           s=None, t=None, mask=None, eps=EPS, irls_iters=3):
-    """full objective: affine scale fit then weighted-smooth correction r."""
+           s=None, t=None, mask=None, eps=EPS, irls_iters=3, norm=False):
+    """full objective: affine scale fit then weighted-smooth correction r.
+    norm: rescale w by its 98th percentile on valid pixels (low-signal
+    stacks such as lightfield refocused frames)."""
     d_inv = np.asarray(d_inv, np.float64)
     z_f = np.asarray(z_f, np.float64)
     w = np.asarray(w, np.float64)
     h, wd = d_inv.shape
     n = h * wd
+
+    if norm:
+        w = norm_conf(w, _focus_valid(z_f, w, mask))
 
     calibrated = True
     if s is None or t is None:
