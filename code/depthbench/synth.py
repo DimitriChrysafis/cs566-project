@@ -204,7 +204,82 @@ def _objects(seed, w, h):
     return Scene(np.clip(color, 0, 1), depth, masks, "objects")
 
 
-_BUILDERS = {"gallery": _gallery, "corridor": _corridor, "slanted": _slanted, "objects": _objects}
+def _stairs(seed, w, h):
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:h, 0:w]
+    depth = np.full((h, w), 6.0, np.float32)
+    g = _smooth_noise(rng, h, w, 2.0)
+    color = (0.66 + 0.04 * g)[..., None].repeat(3, -1).astype(np.float32)
+
+    n_steps, flat_step = 6, 2
+    textured = np.zeros((h, w), bool)
+    for i in range(n_steps):
+        band = (yy >= i * h // n_steps) & (yy < (i + 1) * h // n_steps) & (xx >= (i * w) // 9)
+        z = 1.4 + i * 0.75
+        depth[band] = z
+        if i == flat_step:
+            color[band] = np.array([0.71, 0.68, 0.62], np.float32)
+            continue
+        if i % 2:
+            t = 0.55 + 0.3 * np.sign(np.sin(xx / 5.0 + i)) + 0.12 * _smooth_noise(rng, h, w, 0.9)
+            color[band] = np.clip(np.stack([t, t * 0.9, t * 0.75], -1), 0, 1)[band]
+        else:
+            t = 0.5 + 0.35 * ((xx // 9 + i) % 2) + 0.1 * _smooth_noise(rng, h, w, 0.9)
+            color[band] = np.clip(np.stack([t * 0.7, t * 0.8, t], -1), 0, 1)[band]
+        textured |= band
+
+    rail = (np.abs(xx - (0.55 * w + 0.35 * (yy - h) * w / h)) < 3) & (yy > h // 2)
+    depth[rail] = 2.0
+    color[rail] = np.array([0.25, 0.22, 0.20], np.float32)
+
+    steps = (yy < h) & (xx >= 0) & (depth < 5.9) & ~rail
+    masks = {
+        "steps": steps,
+        "rail": rail,
+        "textureless": (yy < (flat_step + 1) * h // n_steps) & (yy >= flat_step * h // n_steps)
+                       & (xx >= (flat_step * w) // 9) | ~steps | _lowtex(color),
+    }
+    masks["textureless"] &= ~rail
+    return Scene(np.clip(color, 0, 1), depth, masks, "stairs")
+
+
+def _shelves(seed, w, h):
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:h, 0:w]
+    depth = np.full((h, w), 5.5, np.float32)
+    wall = (0.60 + 0.16 * _smooth_noise(rng, h, w, 2.2)
+            + 0.10 * _smooth_noise(rng, h, w, 0.7)
+            + 0.06 * np.sin(xx / 13.0))
+    color = np.clip(wall[..., None] * np.array([0.95, 0.90, 0.82], np.float32), 0, 1)
+
+    flat_board = np.zeros((h, w), bool)
+    for i, (yf, z, tex) in enumerate([(0.22, 2.2, 1), (0.48, 1.6, 1), (0.74, 1.0, 0)]):
+        band = (yy >= yf * h) & (yy < yf * h + 14) & (xx < 0.8 * w)
+        depth[band] = z
+        if tex:
+            t = 0.5 + 0.28 * np.sign(np.sin(xx / 4.0 + i * 2)) + 0.15 * _smooth_noise(rng, h, w, 0.8)
+            color[band] = np.clip(np.stack([t, t * 0.85, t * 0.6], -1), 0, 1)[band]
+        else:
+            color[band] = np.array([0.75, 0.73, 0.68], np.float32)
+            flat_board |= band
+        face = (yy >= yf * h + 14) & (yy < yf * h + 26) & (xx < 0.8 * w)
+        depth[face] = z
+        facecol = 0.35 + 0.1 * _smooth_noise(rng, h, w, 1.2)
+        color[face] = np.clip(facecol[..., None] * np.array([0.9, 0.7, 0.5], np.float32), 0, 1)[face]
+
+    d, _ = _disc(h, w, 0.60, 0.88, 0.14)
+    depth[d] = 1.9
+    color[d] = np.clip(np.array([0.30, 0.40, 0.60]) + 0.4 * _smooth_noise(rng, h, w, 0.7)[d][:, None], 0, 1)
+
+    masks = {
+        "boards": flat_board,
+        "textureless": flat_board | _lowtex(color),
+    }
+    return Scene(np.clip(color, 0, 1), depth, masks, "shelves")
+
+
+_BUILDERS = {"gallery": _gallery, "corridor": _corridor, "slanted": _slanted,
+             "objects": _objects, "stairs": _stairs, "shelves": _shelves}
 SCENE_KINDS = tuple(_BUILDERS)
 
 
