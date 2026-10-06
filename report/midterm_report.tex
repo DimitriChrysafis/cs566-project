@@ -1,0 +1,208 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.95in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage[colorlinks=true,linkcolor=Primary,citecolor=Primary,urlcolor=Secondary]{hyperref}
+\usepackage[most]{tcolorbox}
+
+\definecolor{Primary}{HTML}{2C5F52}
+\definecolor{Secondary}{HTML}{B8860B}
+\definecolor{ProblemBg}{HTML}{FAF7F0}
+\definecolor{TitleBg}{HTML}{1F4037}
+
+\newcommand{\Course}{COMPSCI 566}
+\newcommand{\Assignment}{Project Midterm Report}
+\newcommand{\ProjectTitle}{Monocular Depth Estimation: Benchmarking and a Defocus-Informed Refinement}
+\newcommand{\Date}{\today}
+\newcommand{\captext}[1]{{\fontsize{8.5}{10}\selectfont\itshape #1\par}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt}
+\linespread{1.0}
+\setlist[enumerate]{label=\textbf{\arabic*.}, leftmargin=*, itemsep=0.25em, topsep=0.25em}
+\setlist[itemize]{leftmargin=*, itemsep=0.1em, topsep=0.1em}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\textcolor{Primary}{Chrysafis / Zhou}}
+\chead{\textcolor{Primary}{\Course}}
+\rhead{\textcolor{Primary}{\Assignment}}
+\cfoot{\textcolor{Primary!85!black}{Page \thepage\ of \pageref{LastPage}}}
+\setlength{\headheight}{24pt}
+\renewcommand{\headrulewidth}{0.7pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{Primary!55}\leaders\hrule height \headrulewidth\hfill}}
+
+\tcbset{
+  hwbox/.style={
+    enhanced,
+    breakable,
+    colback=ProblemBg,
+    colframe=Primary!85!black,
+    boxrule=0.85pt,
+    arc=2mm,
+    left=2.6mm,
+    right=2.6mm,
+    top=1.3mm,
+    bottom=1.3mm,
+    before skip=2pt,
+    after skip=2pt,
+    fonttitle=\bfseries,
+    coltitle=Primary!95!black,
+    attach boxed title to top left={xshift=2mm,yshift*=-2mm},
+    boxed title style={
+      colback=Secondary!18,
+      colframe=Primary!80!black,
+      boxrule=0.8pt,
+      arc=1mm,
+      left=1.5mm,
+      right=1.5mm,
+      top=0.8mm,
+      bottom=0.8mm,
+    },
+  },
+}
+\newtcolorbox{reportbox}[2][]{hwbox, title={#2}, #1}
+
+\begin{document}
+
+\begin{tcolorbox}[
+  enhanced,
+  arc=2.5mm,
+  boxrule=0pt,
+  colback=TitleBg,
+  colframe=TitleBg,
+  borderline south={1.5pt}{0pt}{Secondary},
+  title={\textcolor{white}{\Assignment\ \textbullet\ \Date}},
+  coltitle=white,
+  fonttitle=\bfseries,
+  before skip=0pt,
+  after skip=5pt
+]
+  {\color{white}
+  \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}ll}
+    \textbf{Fall 2026} & \textbf{Course:} \Course
+  \end{tabular*}\\[3pt]
+  {\color{white}\textbf{\ProjectTitle}}\\[2pt]
+  {\color{white}\small Dimitri Chrysafis (chrysafis) \quad Vincent Zhou (vzhou2)}
+  }
+\end{tcolorbox}
+
+% Required by the syllabus: brief summary of current progress, current
+% results, difficulties during implementation, and how the proposal has
+% changed in light of progress.
+
+\begin{reportbox}{Progress Summary}
+The full pipeline is implemented and evaluated end to end. Phase 1 is
+complete: DA-V2 ViT-S is benchmarked on all 654 NYU-Depth v2 test
+images, and the classical depth-from-focus baseline (modified
+Laplacian focus measure, parabolic sub-frame interpolation, confidence
+map) runs on rendered focal stacks and all 120 DDFF test stacks.
+Phase 2 is implemented and in ablation: the robust scale fit and the
+regularized local correction are working on the synthetic scenes, and
+the combined system runs qualitatively on real DDFF stacks.
+\end{reportbox}
+
+\begin{reportbox}{Current Results}
+NYU-Depth v2 test split (654 images), DA-V2 ViT-S, two alignment
+variants against ground truth:
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Alignment & AbsRel & RMSE (m) & $\delta_1$ \\
+\midrule
+Least-squares, scale+shift & 0.095 & 0.431 & 0.912 \\
+Median ratio, scale only & 0.507 & 2.376 & 0.376 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The affine fit matters: dropping the shift term roughly doubles AbsRel,
+which supports modeling $q = s\hat d + t$ rather than rescaling alone.
+
+Synthetic focal stacks (10 frames, focus 0.9--7\,m, thin-lens blur
+model, means over four scenes), metric depth scored without alignment:
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Method & AbsRel & RMSE (m) & $\delta_1$ \\
+\midrule
+Focus baseline (DFF) & 0.202 & 1.521 & 0.706 \\
+DA-V2 aligned (oracle) & 0.255 & 1.296 & 0.567 \\
+DA-V2 + scale fit from focus & 0.284 & 1.508 & 0.502 \\
+Full refinement & 0.248 & 1.530 & 0.560 \\
+\bottomrule
+\end{tabular}
+\end{center}
+The focus baseline is accurate where texture exists
+($\delta_1$ 0.96--1.00 on textured regions) but degrades on flat
+regions, exactly where the confidence map reads low
+($\bar w \approx 0.06$--0.25 textureless vs.\ 0.26--0.66 textured).
+On the calibrated scenes' textured pixels the refinement improves on
+the focus baseline (AbsRel 0.154 vs.\ 0.158) and beats the affine-only
+fit overall (0.248 vs.\ 0.284), i.e.\ the local correction $r$
+contributes beyond the global scale terms. DA-V2 is weaker than the focus
+baseline on our synthetic scenes even with oracle alignment ---
+plausible, since the renderer is far from its training distribution ---
+which makes this benchmark a useful stress test rather than a real-data
+statement.
+\end{reportbox}
+
+\begin{reportbox}{Difficulties}
+\begin{itemize}
+\item \textbf{DDFF labels.} The public test archive ships 120 focal
+  stacks but no ground truth (withheld for the benchmark server), and
+  per-frame focus distances are not recorded. We reconstructed focus
+  distances from the refocus geometry in the paper (disparities linear
+  in $[0.02,0.28]$~px, $z \approx 0.14/d$) and limited DDFF to
+  qualitative evaluation; measured confidences on the real Lytro stacks
+  are low ($\bar w \approx 0.03$--0.05), and scale calibration was
+  rejected on half of the stacks we tried.
+\item \textbf{NYU test split sourcing.} Both canonical sources were
+  unreachable (the DenseDepth mirror returns 403 and the NYU host
+  refuses connections); we used a mirror of the same 654-image Eigen
+  test split and verified image count, units, and depth range.
+\item \textbf{Defocus veiling.} In the layered renderer, blurred
+  near-field texture bleeds over flat surfaces, which lifts the focus
+  measure there (the synthetic corridor's flat ceiling reaches
+  $w \approx 0.4$). This is a genuine failure mode of the focus
+  measurement rather than a renderer artifact and it caps how far we
+  can trust $w$ at occlusion boundaries.
+\item \textbf{Rejected fits.} On scenes where the learned prediction
+  anticorrelates with the focus estimate, the scale fit is degenerate
+  ($s \le 0$); we fall back to the bounded uncalibrated output per the
+  proposal rather than emit bad metric depth.
+\end{itemize}
+\end{reportbox}
+
+\begin{reportbox}{Changes from Proposal}
+DDFF 12-Scene moved from a quantitative to a qualitative dataset: the
+verification the proposal made conditional showed the released test
+stacks carry no labels. Rendered scenes now carry the quantitative
+refinement evaluation, which also gives us controlled ablations. The
+method itself is unchanged; we added a degenerate-fit guard so
+uncalibrated output is reported as relative depth.
+\end{reportbox}
+
+\begin{reportbox}{Next Steps}
+\begin{itemize}
+\item First-pass ablations are in (stack size, confidence weighting,
+  $\lambda$, $\mu$); next is a tuning/held-out scene split so the
+  reported numbers are not tuned on the evaluation scenes.
+\item Extend the DDFF qualitative evaluation and, time permitting,
+  phone-captured focal stacks as a second real source.
+\item Finish the results figures and tables for the project webpage;
+  keep the presentation deck in step with the final numbers.
+\end{itemize}
+\end{reportbox}
+
+\end{document}

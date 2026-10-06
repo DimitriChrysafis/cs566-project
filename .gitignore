@@ -11,3 +11,4 @@ data/*
 !data/.gitkeep
 results/preds/
 results/figs/tmp/
+results/*.npz
