@@ -21,16 +21,28 @@ SPLIT_COLS = ("split", "region")
 
 LABELS = {
     "aligned_dav2": "Aligned DA-V2",
-    "focus": "Focus baseline",
+    "focus_raw": "DFF raw",
+    "focus": "DFF + all-focus smooth",
     "scale_fit": "DA-V2 + scale fit",
-    "refined": "Full refinement",
+    "refined": "Refined (ours)",
+    "combined": "Combined (ours)",
     "dav2_lsq": "DA-V2 (scale+shift)",
     "dav2_median": "DA-V2 (median scale)",
+    "dav2s_lsq": "DA-V2 Small (scale+shift)",
+    "dav2s_irls": "DA-V2 Small (robust IRLS)",
+    "dav2s_median": "DA-V2 Small (median scale)",
+    "dav2b_lsq": "DA-V2 Base (scale+shift)",
+    "dav2l_lsq": "DA-V2 Large (scale+shift)",
+    "hypersim_none": "DA-V2 Metric Indoor (unaligned)",
+    "hypersim_lsq": "DA-V2 Metric Indoor (aligned)",
+    "dff_raw": "DFF raw",
+    "dff": "DFF + all-focus smooth",
 }
 
 JOBS = (
-    ("NYU", [RESULTS / "nyu_dav2.csv"]),
-    ("SYNTH", [RESULTS / "refine_synth.csv", RESULTS / "synth_dff.csv"]),
+    ("NYU", [(RESULTS / "nyu_models.csv", {"crop": "eigen"}),
+             (RESULTS / "nyu_dav2.csv", None)]),
+    ("SYNTH", [(RESULTS / "refine_synth.csv", {"set": "eval"})]),
 )
 
 
@@ -72,11 +84,18 @@ def aggregate_per_image(path):
     return ["dav2_lsq", "dav2_median"], groups
 
 
-def aggregate(paths):
-    """Return ordered {group: {metric: [values]}} pooled across csv files."""
+def aggregate(specs):
+    """Return ordered {group: {metric: [values]}} pooled across csv files.
+
+    specs: list of (path, filters). filters is a dict of column -> required
+    value applied to rows, or None. Once a file contributes rows, later
+    fallback files are skipped.
+    """
     groups = {}
     order = []
-    for path in paths:
+    for path, filters in specs:
+        if order:
+            break
         if not path.exists():
             continue
         fields, rows = read_csv(path)
@@ -87,6 +106,11 @@ def aggregate(paths):
             if path.name == "nyu_dav2.csv":
                 return aggregate_per_image(path)
             continue
+        if filters:
+            rows = [r for r in rows if all(
+                (r.get(k) or "").strip() == v for k, v in filters.items())]
+            if not rows:
+                continue
         mcols = {m: find_col(fields, m) for m in METRICS}
         if not any(mcols.values()):
             continue

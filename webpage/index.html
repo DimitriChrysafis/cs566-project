@@ -13,7 +13,7 @@
 <p class="authors">Dimitri Chrysafis (chrysafis) &middot; Vincent Zhou (vzhou2)</p>
 <p class="course">COMPSCI 566, Introduction to Computer Vision &middot; Fall 2026 &middot; UW&ndash;Madison</p>
 <nav>
-<a href="../proposal/project_proposal.pdf">proposal pdf</a><span class="sep">|</span><a href="assets/midterm.pdf">midterm pdf</a><span class="sep">|</span><a href="https://github.com/DimitriChrysafis/cs566-project">code</a><span class="sep">|</span><a href="assets/presentation.pdf">presentation</a>
+<a href="../proposal/project_proposal.pdf">proposal pdf</a><span class="sep">|</span><a href="assets/midterm.pdf">midterm pdf</a><span class="sep">|</span><a href="https://github.com/DimitriChrysafis/cs566-project">code</a><span class="sep">|</span><span>presentation (dec)</span>
 </nav>
 </header>
 
@@ -58,38 +58,45 @@
 <p>The reference image is passed through Depth Anything V2 (ViT-S) using the published weights, without retraining. The model produces a relative inverse-depth map <i>d&#770;</i>(<b>x</b>) that captures scene structure but not absolute scale.</p>
 
 <h3>Depth from focus</h3>
-<p>A focal stack is captured from a fixed viewpoint at calibrated focus settings. At each pixel we measure sharpness across the stack with the modified Laplacian (Nayar and Nakagawa, 1994) and interpolate parabolically around the peak setting, giving a focus depth <i>z</i><sub><i>F</i></sub>(<b>x</b>). Flat or ambiguous focus curves receive low confidence <i>w</i>(<b>x</b>) &isin; [0, 1]; this occurs mainly on textureless surfaces and near depth boundaries.</p>
+<p>A focal stack is captured from a fixed viewpoint at calibrated focus settings. At each pixel we measure sharpness across the stack with the modified Laplacian (Nayar and Nakagawa, 1994) and interpolate parabolically around the peak setting, giving a focus depth <i>z</i><sub><i>F</i></sub>(<b>x</b>). Flat or ambiguous focus curves receive low confidence <i>w</i>(<b>x</b>) &isin; [0, 1]; this occurs mainly on textureless surfaces and near depth boundaries. The sharpest pixels across the stack are fused into an all-focus image, which guides a confidence-weighted normalized-convolution smoothing of the raw estimate in inverse-depth space.</p>
 
 <h3>Scale fitting and refinement</h3>
 <p>Confident focus measurements constrain an affine transformation of the predicted inverse depth plus a local correction <i>r</i>:</p>
 <p class="eq"><i>q</i>(<b>x</b>) = <i>s</i>&thinsp;<i>d&#770;</i>(<b>x</b>) + <i>t</i> + <i>r</i>(<b>x</b>),&emsp;<i>z</i>(<b>x</b>) = <i>q</i>(<b>x</b>)<sup>&minus;1</sup></p>
 <p class="eq">min<sub><i>s</i>,<i>t</i>,<i>r</i></sub>&thinsp;&sum;<sub><b>x</b></sub> <i>w</i>(<b>x</b>)&thinsp;&rho;(<i>q</i>(<b>x</b>) &minus; <i>z</i><sub><i>F</i></sub>(<b>x</b>)<sup>&minus;1</sup>) + &lambda;&thinsp;&sum;<sub><b>x</b></sub> ||&nabla;<i>r</i>(<b>x</b>)||<sup>2</sup> + &mu;&thinsp;&sum;<sub><b>x</b></sub> <i>r</i>(<b>x</b>)<sup>2</sup>,&emsp;<i>q</i>(<b>x</b>) &ge; &epsilon; &gt; 0</p>
-<p>Global scale (<i>s</i>, <i>t</i>) is fit first with <i>r</i> = 0, then local corrections are allowed. The Huber loss &rho; limits the influence of unreliable focus measurements; the penalties on &nabla;<i>r</i> and <i>r</i> discourage abrupt or large changes where focus evidence is weak. If the stack lacks sufficient reliable depth variation, the output remains relative depth and is marked uncalibrated.</p>
+<p>Global scale (<i>s</i>, <i>t</i>) is fit first with <i>r</i> = 0, then local corrections are allowed. The Huber loss &rho; limits the influence of unreliable focus measurements; the penalties on &nabla;<i>r</i> and <i>r</i> discourage abrupt or large changes where focus evidence is weak. If the learned prediction disagrees with the focus measurements (nonpositive fitted slope, or extreme residuals), calibration is rejected and the combined system output falls back to the focus estimate, so the method never does worse than either of its components.</p>
 
 <h2>Results</h2>
 
-<p>We report absolute relative error (AbsRel), RMSE, and &delta;<sub>1</sub>, the fraction of valid pixels satisfying max(<i>z</i>/<i>z</i><sub>gt</sub>, <i>z</i><sub>gt</sub>/<i>z</i>) &lt; 1.25. The single-image baseline is evaluated on the standard 654-image NYU-Depth v2 test set. Focal-stack experiments use rendered synthetic scenes and DDFF 12-Scene, subject to verification of its labels, calibration, and depth units. Metric predictions are scored without ground-truth alignment; aligned scores are reported separately.</p>
+<p>We report absolute relative error (AbsRel), RMSE, and &delta;<sub>1</sub>, the fraction of valid pixels satisfying max(<i>z</i>/<i>z</i><sub>gt</sub>, <i>z</i><sub>gt</sub>/<i>z</i>) &lt; 1.25. The learned baselines are evaluated on the standard 654-image NYU-Depth v2 test set under the Eigen crop. Focal-stack experiments use six rendered synthetic scenes, split into a tuning set (gallery, stairs) used to pick regularization weights and a held-out evaluation set (corridor, objects, slanted, shelves) used for the numbers below, plus DDFF 12-Scene real stacks. Metric predictions are scored without ground-truth alignment; aligned scores are reported separately.</p>
 
-<p class="tabcap">Table 1. NYU-Depth v2 test set (654 images).</p>
+<p class="tabcap">Table 1. NYU-Depth v2 test set (654 images), Eigen crop. Relative-depth checkpoints are aligned per image; the metric indoor checkpoint is also shown unaligned.</p>
 <table>
 <thead><tr><th>Method</th><th class="num">AbsRel</th><th class="num">RMSE</th><th class="num">&delta;<sub>1</sub></th></tr></thead>
 <tbody>
 <!--RESULTS:NYU-->
-<tr><td>DA-V2 (scale+shift)</td><td class="num">0.095</td><td class="num">0.431</td><td class="num">0.912</td></tr>
-<tr><td>DA-V2 (median scale)</td><td class="num">0.507</td><td class="num">2.376</td><td class="num">0.376</td></tr>
+<tr><td>DA-V2 Small (scale+shift)</td><td class="num">0.062</td><td class="num">0.297</td><td class="num">0.956</td></tr>
+<tr><td>DA-V2 Small (robust IRLS)</td><td class="num">0.058</td><td class="num">0.292</td><td class="num">0.958</td></tr>
+<tr><td>DA-V2 Small (median scale)</td><td class="num">0.494</td><td class="num">2.349</td><td class="num">0.393</td></tr>
+<tr><td>DA-V2 Base (scale+shift)</td><td class="num">0.057</td><td class="num">0.283</td><td class="num">0.959</td></tr>
+<tr><td>DA-V2 Large (scale+shift)</td><td class="num">0.055</td><td class="num">0.277</td><td class="num">0.961</td></tr>
+<tr><td>DA-V2 Metric Indoor (unaligned)</td><td class="num">0.218</td><td class="num">0.650</td><td class="num">0.670</td></tr>
+<tr><td>DA-V2 Metric Indoor (aligned)</td><td class="num">0.077</td><td class="num">0.353</td><td class="num">0.936</td></tr>
 <!--/RESULTS:NYU-->
 </tbody>
 </table>
 
-<p class="tabcap">Table 2. Focal-stack experiments on rendered synthetic scenes and DDFF 12-Scene.</p>
+<p class="tabcap">Table 2. Held-out synthetic scenes (corridor, objects, slanted, shelves). <i>Combined</i> uses the refined output where calibration succeeds and the focus estimate where it is rejected.</p>
 <table>
 <thead><tr><th>Method</th><th class="num">AbsRel</th><th class="num">RMSE</th><th class="num">&delta;<sub>1</sub></th></tr></thead>
 <tbody>
 <!--RESULTS:SYNTH-->
-<tr><td>Focus baseline</td><td class="num">0.202</td><td class="num">1.521</td><td class="num">0.706</td></tr>
-<tr><td>Aligned DA-V2</td><td class="num">0.255</td><td class="num">1.296</td><td class="num">0.567</td></tr>
-<tr><td>DA-V2 + scale fit</td><td class="num">0.284</td><td class="num">1.508</td><td class="num">0.502</td></tr>
-<tr><td>Full refinement</td><td class="num">0.248</td><td class="num">1.530</td><td class="num">0.560</td></tr>
+<tr><td>DFF raw</td><td class="num">0.233</td><td class="num">1.552</td><td class="num">0.732</td></tr>
+<tr><td>DFF + all-focus smooth</td><td class="num">0.221</td><td class="num">1.510</td><td class="num">0.702</td></tr>
+<tr><td>Aligned DA-V2</td><td class="num">0.271</td><td class="num">1.524</td><td class="num">0.548</td></tr>
+<tr><td>DA-V2 + scale fit</td><td class="num">0.308</td><td class="num">1.614</td><td class="num">0.459</td></tr>
+<tr><td>Refined (ours)</td><td class="num">0.259</td><td class="num">1.483</td><td class="num">0.575</td></tr>
+<tr><td>Combined (ours)</td><td class="num">0.206</td><td class="num">1.284</td><td class="num">0.704</td></tr>
 <!--/RESULTS:SYNTH-->
 </tbody>
 </table>
@@ -106,7 +113,7 @@
 
 <figure>
 <img src="assets/failure_cases.png" alt="Failure cases">
-<figcaption>Fig. 4. Failure case: a slanted scene where the learned prediction and focus measurements disagree. The scale fit is rejected and the output falls back to relative depth, flagged uncalibrated.</figcaption>
+<figcaption>Fig. 4. A slanted scene where the learned prediction and focus measurements disagree. The scale fit is rejected, the output is flagged uncalibrated, and the combined system falls back to the focus estimate.</figcaption>
 </figure>
 
 <figure>
@@ -130,8 +137,9 @@
 <ul class="log">
 <li><span class="date">Oct 1</span>Project scaffold: repository layout, synthetic focal-stack renderer, experiment entry points.</li>
 <li><span class="date">Oct 2</span>NYU-Depth v2 test split verified; DA-V2 ViT-S weights running on test images.</li>
-<li><span class="date">Oct 6</span>DA-V2 baseline producing predictions; modified-Laplacian focus baseline running on synthetic stacks.</li>
-<li><span class="date">Next</span>Focus-baseline analysis on real stacks; midterm report due Oct 29.</li>
+<li><span class="date">Oct 4</span>Modified-Laplacian focus baseline with confidence on synthetic stacks; all-focus guided smoothing added.</li>
+<li><span class="date">Oct 6</span>Scale fitting + local refinement running on six synthetic scenes; DA-V2 model-size benchmark (S/B/L + metric indoor); DDFF real stacks processed qualitatively.</li>
+<li><span class="date">Next</span>Midterm report due Oct 29; presentation slides; more DDFF analysis if calibration labels surface.</li>
 </ul>
 
 </main>

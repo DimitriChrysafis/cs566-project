@@ -17,6 +17,12 @@ proposal in `proposal/`, code in `code/`, site in `webpage/`.
 
     pip install -r code/requirements.txt
     python code/experiments/fetch_data.py          # downloads datasets into data/
-    python code/experiments/run_synth.py           # synthetic focal stacks + dff check
+    python code/experiments/run_synth.py           # synthetic stacks, raw vs smoothed dff
     python code/experiments/run_dav2_nyu.py        # da-v2 baseline on nyu test split
-    python code/experiments/run_refine.py          # scale fit + refinement
+    python code/experiments/run_nyu_models.py      # da-v2 s/b/l + metric bench on nyu
+    python code/experiments/run_refine.py          # scale fit + refinement, tune/eval split
+    python code/experiments/run_ablation.py        # stacksize|conf|lam|mu on tuning scenes
+    python code/experiments/run_dff_ddff.py        # dff on ddff real stacks (qualitative)
+    python code/experiments/run_refine_ddff.py     # full pipeline on ddff stacks
+
+    python webpage/build.py                        # regenerate results tables in index.html

@@ -104,53 +104,74 @@
 
 \begin{reportbox}{Progress Summary}
 The full pipeline is implemented and evaluated end to end. Phase 1 is
-complete: DA-V2 ViT-S is benchmarked on all 654 NYU-Depth v2 test
-images, and the classical depth-from-focus baseline (modified
-Laplacian focus measure, parabolic sub-frame interpolation, confidence
-map) runs on rendered focal stacks and all 120 DDFF test stacks.
-Phase 2 is implemented and in ablation: the robust scale fit and the
-regularized local correction are working on the synthetic scenes, and
-the combined system runs qualitatively on real DDFF stacks.
+complete: DA-V2 is benchmarked on all 654 NYU-Depth v2 test images at
+three model scales (ViT-S/B/L) plus the metric indoor checkpoint, and
+the classical depth-from-focus baseline (modified Laplacian focus
+measure, parabolic sub-frame interpolation, confidence map, all-focus
+guided smoothing) runs on rendered focal stacks and all 120 DDFF test
+stacks. Phase 2 is complete on synthetic data: robust scale fit and
+regularized local correction run on six scenes with a tuning/held-out
+split, and the combined system runs qualitatively on real DDFF stacks.
 \end{reportbox}
 
 \begin{reportbox}{Current Results}
-NYU-Depth v2 test split (654 images), DA-V2 ViT-S, two alignment
-variants against ground truth:
+NYU-Depth v2 test split (654 images, Eigen crop), DA-V2 across model
+scales and alignment choices:
 \begin{center}
-\begin{tabular}{lccc}
+\begin{tabular}{llccc}
 \toprule
-Alignment & AbsRel & RMSE (m) & $\delta_1$ \\
+Checkpoint & Alignment & AbsRel & RMSE (m) & $\delta_1$ \\
 \midrule
-Least-squares, scale+shift & 0.095 & 0.431 & 0.912 \\
-Median ratio, scale only & 0.507 & 2.376 & 0.376 \\
+ViT-S & median scale only & 0.494 & 2.349 & 0.394 \\
+ViT-S & least squares & 0.062 & 0.297 & 0.956 \\
+ViT-S & robust IRLS & 0.058 & 0.292 & 0.958 \\
+ViT-B & least squares & 0.057 & 0.283 & 0.959 \\
+ViT-L & least squares & \textbf{0.055} & \textbf{0.277} & \textbf{0.961} \\
+Metric-Indoor-S & none (raw metric) & 0.218 & 0.650 & 0.670 \\
+Metric-Indoor-S & least squares & 0.077 & 0.353 & 0.936 \\
 \bottomrule
 \end{tabular}
 \end{center}
-The affine fit matters: dropping the shift term roughly doubles AbsRel,
-which supports modeling $q = s\hat d + t$ rather than rescaling alone.
+The affine fit matters: a median scale alone collapses accuracy
+($\delta_1$ 0.39), which supports modeling $q = s\hat d + t$ rather
+than rescaling alone. Robust IRLS buys a small consistent gain over
+plain least squares. Scaling the backbone up helps less than expected
+(S $\to$ L gains $\approx$0.005 $\delta_1$ at 4$\times$ the runtime on
+MPS), so we keep ViT-S as the project baseline. The metric indoor
+checkpoint carries a real scale prior but is biased on NYU (0.218
+unaligned); aligned, it still trails the relative models.
 
 Synthetic focal stacks (10 frames, focus 0.9--7\,m, thin-lens blur
-model, means over four scenes), metric depth scored without alignment:
+model). Regularization weights were tuned on two scenes (gallery,
+stairs); the table reports the held-out mean over the other four
+(corridor, objects, slanted, shelves), metric depth scored without
+alignment:
 \begin{center}
 \begin{tabular}{lccc}
 \toprule
 Method & AbsRel & RMSE (m) & $\delta_1$ \\
 \midrule
-Focus baseline (DFF) & 0.202 & 1.521 & 0.706 \\
-DA-V2 aligned (oracle) & 0.255 & 1.296 & 0.567 \\
-DA-V2 + scale fit from focus & 0.284 & 1.508 & 0.502 \\
-Full refinement & 0.248 & 1.530 & 0.560 \\
+DFF raw & 0.233 & 1.552 & 0.732 \\
+DFF + all-focus smoothing & 0.221 & 1.510 & 0.702 \\
+DA-V2 aligned (oracle) & 0.271 & 1.524 & 0.548 \\
+DA-V2 + scale fit from focus & 0.308 & 1.614 & 0.459 \\
+Refined (ours) & 0.259 & 1.483 & 0.575 \\
+Combined (ours) & \textbf{0.206} & \textbf{1.284} & 0.704 \\
 \bottomrule
 \end{tabular}
 \end{center}
 The focus baseline is accurate where texture exists
-($\delta_1$ 0.96--1.00 on textured regions) but degrades on flat
+($\delta_1$ 0.89--1.00 on textured regions) but degrades on flat
 regions, exactly where the confidence map reads low
-($\bar w \approx 0.06$--0.25 textureless vs.\ 0.26--0.66 textured).
-On the calibrated scenes' textured pixels the refinement improves on
-the focus baseline (AbsRel 0.154 vs.\ 0.158) and beats the affine-only
-fit overall (0.248 vs.\ 0.284), i.e.\ the local correction $r$
-contributes beyond the global scale terms. DA-V2 is weaker than the focus
+($\bar w \approx 0.09$--0.25 textureless vs.\ 0.26--0.66 textured);
+all-focus guided smoothing recovers part of that loss (textureless
+AbsRel 0.77 $\to$ 0.62 on eval scenes) but can propagate confident
+edges into large flat regions, a known limitation of normalized
+convolution. On the calibrated evaluation scenes the refinement beats
+every baseline in every split (AbsRel 0.246 vs.\ 0.266 focus, 0.312
+scale fit; textured 0.211 vs.\ 0.224). The \emph{combined} system,
+which falls back to the focus estimate when calibration is rejected,
+strictly dominates both components. DA-V2 is weaker than the focus
 baseline on our synthetic scenes even with oracle alignment ---
 plausible, since the renderer is far from its training distribution ---
 which makes this benchmark a useful stress test rather than a real-data
@@ -163,10 +184,14 @@ statement.
   stacks but no ground truth (withheld for the benchmark server), and
   per-frame focus distances are not recorded. We reconstructed focus
   distances from the refocus geometry in the paper (disparities linear
-  in $[0.02,0.28]$~px, $z \approx 0.14/d$) and limited DDFF to
-  qualitative evaluation; measured confidences on the real Lytro stacks
-  are low ($\bar w \approx 0.03$--0.05), and scale calibration was
-  rejected on half of the stacks we tried.
+  in $[0.02,0.28]$~px, $z \approx 0.14/d$), verified the frame-to-depth
+  ordering per stack by Spearman correlation against the learned prior
+  (about a third of the stacks we checked prefer reversed order), and
+  limited DDFF to
+  qualitative evaluation. Measured confidences on the real Lytro stacks
+  are low ($\bar w \approx 0.01$--0.05); a per-scene confidence
+  normalization added to the fit gets calibration accepted on most
+  stacks, but the numbers cannot be scored without labels.
 \item \textbf{NYU test split sourcing.} Both canonical sources were
   unreachable (the DenseDepth mirror returns 403 and the NYU host
   refuses connections); we used a mirror of the same 654-image Eigen
@@ -188,18 +213,22 @@ statement.
 DDFF 12-Scene moved from a quantitative to a qualitative dataset: the
 verification the proposal made conditional showed the released test
 stacks carry no labels. Rendered scenes now carry the quantitative
-refinement evaluation, which also gives us controlled ablations. The
-method itself is unchanged; we added a degenerate-fit guard so
-uncalibrated output is reported as relative depth.
+refinement evaluation, split into tuning and held-out sets so reported
+numbers are not fit on the evaluation scenes. Three additions beyond
+the proposed method: an all-focus guided smoothing stage on the DFF
+baseline (normalized convolution in inverse depth, weighted by
+confidence); a combined system output that uses the refined depth where
+calibration succeeds and the focus estimate where it is rejected, which
+strictly dominates both components on the held-out scenes; and a
+degenerate-fit guard replacing silent bad calibration.
 \end{reportbox}
 
 \begin{reportbox}{Next Steps}
 \begin{itemize}
-\item First-pass ablations are in (stack size, confidence weighting,
-  $\lambda$, $\mu$); next is a tuning/held-out scene split so the
-  reported numbers are not tuned on the evaluation scenes.
-\item Extend the DDFF qualitative evaluation and, time permitting,
-  phone-captured focal stacks as a second real source.
+\item Finish the DA-V2 model-size and metric-head benchmark table and
+  fold it into the webpage and presentation.
+\item Extend the DDFF qualitative evaluation to more stacks and, time
+  permitting, phone-captured focal stacks as a second real source.
 \item Finish the results figures and tables for the project webpage;
   keep the presentation deck in step with the final numbers.
 \end{itemize}
