@@ -11,7 +11,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from depthbench.synth import make_scene, render_stack, SCENE_KINDS
-from depthbench.dff import depth_from_focus
+from depthbench.dff import dff_pipeline
 
 ROOT = Path(__file__).resolve().parents[2]
 RES = ROOT / "results"
@@ -73,24 +73,31 @@ def main():
     for kind in SCENE_KINDS:
         scene = make_scene(kind, seed=0)
         stack = render_stack(scene, ZFS, noise=0.004, seed=0)
-        est, conf = depth_from_focus(stack, ZFS)
+        pipe = dff_pipeline(stack, ZFS)
+        est, conf = pipe["z"], pipe["conf"]
 
         tl = scene.masks["textureless"]
         regions = {"all": np.ones_like(tl), "textured": ~tl, "textureless": tl}
-        for reg, m in regions.items():
-            a, r, d = _metrics(est, scene.depth, m)
-            rows.append(dict(scene=kind, region=reg, absrel=a, rmse=r, delta1=d,
-                             conf=float(conf[m].mean()), n_px=int(m.sum())))
-            print(f"{kind:10s} {reg:12s} absrel={a:.3f} rmse={r:.3f} delta1={d:.3f} conf={conf[m].mean():.3f}")
+        for method, z in (("dff_raw", pipe["z_raw"]), ("dff", est)):
+            for reg, m in regions.items():
+                a, r, d = _metrics(z, scene.depth, m)
+                rows.append(dict(scene=kind, method=method, region=reg, absrel=a,
+                                 rmse=r, delta1=d, conf=float(conf[m].mean()),
+                                 n_px=int(m.sum())))
+        for reg in regions:
+            sel = [r for r in rows[-6:] if r["region"] == reg]
+            for r in sel:
+                print(f"{kind:10s} {r['method']:8s} {reg:12s} absrel={r['absrel']:.3f} "
+                      f"rmse={r['rmse']:.3f} delta1={r['delta1']:.3f} conf={r['conf']:.3f}")
 
         _fig(scene, stack, est, conf, FIGS / f"synth_dff_{kind}.pdf")
         np.savez_compressed(RES / f"synth_{kind}.npz", depth=scene.depth, z_est=est,
-                            conf=conf, zfs=ZFS,
+                            z_raw=pipe["z_raw"], conf=conf, zfs=ZFS,
                             **{f"mask_{k}": v for k, v in scene.masks.items()})
         print(f"  -> {FIGS / f'synth_dff_{kind}.pdf'}")
 
     with open(RES / "synth_dff.csv", "w", newline="") as f:
-        wtr = csv.DictWriter(f, fieldnames=["scene", "region", "absrel", "rmse", "delta1", "conf", "n_px"])
+        wtr = csv.DictWriter(f, fieldnames=["scene", "method", "region", "absrel", "rmse", "delta1", "conf", "n_px"])
         wtr.writeheader()
         for r in rows:
             wtr.writerow({k: (f"{v:.4f}" if isinstance(v, float) else v) for k, v in r.items()})
