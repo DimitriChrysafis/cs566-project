@@ -103,15 +103,18 @@
 % changed in light of progress.
 
 \begin{reportbox}{Progress Summary}
-The full pipeline is implemented and evaluated end to end. Phase 1 is
-complete: DA-V2 is benchmarked on all 654 NYU-Depth v2 test images at
-three model scales (ViT-S/B/L) plus the metric indoor checkpoint, and
-the classical depth-from-focus baseline (modified Laplacian focus
-measure, parabolic sub-frame interpolation, confidence map, all-focus
-guided smoothing) runs on rendered focal stacks and all 120 DDFF test
-stacks. Phase 2 is complete on synthetic data: robust scale fit and
-regularized local correction run on six scenes with a tuning/held-out
-split, and the combined system runs qualitatively on real DDFF stacks.
+The pipeline runs end to end. Phase 1 is done: DA-V2 is benchmarked
+on all 654 NYU-Depth v2 test images at three model scales
+(ViT-S/B/L) plus the metric indoor checkpoint, and the classical
+depth-from-focus baseline (modified Laplacian focus measure,
+parabolic sub-frame interpolation, confidence map, all-focus guided
+smoothing) runs on the rendered focal stacks and all 120 DDFF test
+stacks. Phase 2 is done on synthetic data: the robust scale fit and
+regularized local correction run on six scenes split into tuning and
+held-out sets, and the combined system runs qualitatively on real
+DDFF stacks. Preliminary ablations on the tuning scenes cover
+confidence weighting, the regularization and correction weights, and
+focal-stack size (2/3/5/10 frames).
 \end{reportbox}
 
 \begin{reportbox}{Current Results}
@@ -133,13 +136,13 @@ Metric-Indoor-S & least squares & 0.077 & 0.353 & 0.936 \\
 \end{tabular}
 \end{center}
 The affine fit matters: a median scale alone collapses accuracy
-($\delta_1$ 0.39), which supports modeling $q = s\hat d + t$ rather
-than rescaling alone. Robust IRLS buys a small consistent gain over
-plain least squares. Scaling the backbone up helps less than expected
-(S $\to$ L gains $\approx$0.005 $\delta_1$ at 4$\times$ the runtime on
-MPS), so we keep ViT-S as the project baseline. The metric indoor
-checkpoint carries a real scale prior but is biased on NYU (0.218
-unaligned); aligned, it still trails the relative models.
+($\delta_1$ 0.39), so we model $q = s\hat d + t$ instead of rescaling.
+Robust IRLS buys a small, consistent gain over plain least squares.
+Bigger backbones help less than expected (S $\to$ L gains
+$\approx$0.005 $\delta_1$ at 4$\times$ the runtime on MPS), so ViT-S
+stays the project baseline. The metric indoor checkpoint has a real
+scale prior but is biased on NYU (0.218 unaligned), and even aligned
+it trails the relative models.
 
 Synthetic focal stacks (10 frames, focus 0.9--7\,m, thin-lens blur
 model). Regularization weights were tuned on two scenes (gallery,
@@ -160,77 +163,89 @@ Combined (ours) & \textbf{0.206} & \textbf{1.284} & 0.704 \\
 \bottomrule
 \end{tabular}
 \end{center}
-The focus baseline is accurate where texture exists
-($\delta_1$ 0.89--1.00 on textured regions) but degrades on flat
-regions, exactly where the confidence map reads low
-($\bar w \approx 0.09$--0.25 textureless vs.\ 0.26--0.66 textured);
-all-focus guided smoothing recovers part of that loss (textureless
-AbsRel 0.77 $\to$ 0.62 on eval scenes) but can propagate confident
-edges into large flat regions, a known limitation of normalized
-convolution. On the calibrated evaluation scenes the refinement beats
-every baseline in every split (AbsRel 0.246 vs.\ 0.266 focus, 0.312
-scale fit; textured 0.211 vs.\ 0.224). The \emph{combined} system,
-which falls back to the focus estimate when calibration is rejected,
-strictly dominates both components. DA-V2 is weaker than the focus
-baseline on our synthetic scenes even with oracle alignment ---
-plausible, since the renderer is far from its training distribution ---
-which makes this benchmark a useful stress test rather than a real-data
-statement.
+The focus baseline is accurate where texture exists ($\delta_1$
+0.89--1.00 on textured regions) and degrades on flat surfaces, which
+is exactly where the confidence map reads low ($\bar w \approx
+0.06$--0.26 textureless, 0.26--0.66 textured). All-focus guided
+smoothing recovers part of that loss (textureless AbsRel 0.77 $\to$
+0.62 on eval scenes) but can smear confident edges into large flat
+regions, a known limitation of normalized convolution. On the
+calibrated eval scenes (corridor, objects, shelves) the refinement
+beats every non-oracle baseline on every split: AbsRel 0.246 vs.\
+0.266 focus, 0.312 scale fit, 0.277 raw focus; textured 0.211 vs.\
+0.224. The one number it loses is low-texture AbsRel against
+oracle-aligned DA-V2 (0.281 vs.\ 0.265), and that fit uses ground
+truth. The \emph{combined} system falls back to the focus estimate on
+rejected calibrations and beats either component alone on the
+held-out scenes. DA-V2 underperforms the focus baseline on our scenes
+even with oracle alignment, plausible given how far the renderer sits
+from its training distribution, so we read this benchmark as a stress
+test rather than a real-data statement.
+\begin{center}
+\includegraphics[width=\linewidth]{refine_corridor.pdf}\\[2pt]
+\captext{Corridor, a held-out calibrated scene: input RGB,
+ground-truth depth, the focus estimate $z_F$, confidence $w$, our
+refined metric depth, and its relative error.}
+\end{center}
 \end{reportbox}
 
 \begin{reportbox}{Difficulties}
 \begin{itemize}
 \item \textbf{DDFF labels.} The public test archive ships 120 focal
   stacks but no ground truth (withheld for the benchmark server), and
-  per-frame focus distances are not recorded. We reconstructed focus
-  distances from the refocus geometry in the paper (disparities linear
-  in $[0.02,0.28]$~px, $z \approx 0.14/d$), verified the frame-to-depth
-  ordering per stack by Spearman correlation against the learned prior
-  (about a third of the stacks we checked prefer reversed order), and
-  limited DDFF to
-  qualitative evaluation. Measured confidences on the real Lytro stacks
-  are low ($\bar w \approx 0.01$--0.05); a per-scene confidence
-  normalization added to the fit gets calibration accepted on most
-  stacks, but the numbers cannot be scored without labels.
+  per-frame focus distances go unrecorded. We reconstructed focus
+  distances from the paper's refocus geometry (disparities linear in
+  $[0.02,0.28]$~px, $z \approx 0.14/d$), verified the frame-to-depth
+  ordering per stack by Spearman correlation against the learned
+  prior (about a third of the stacks we checked prefer reversed
+  order), and limited DDFF to qualitative evaluation. Confidences on
+  the real Lytro stacks run low ($\bar w \approx 0.02$--0.05); a
+  per-scene confidence normalization in the fit gets calibration
+  accepted on most stacks, but none of it can be scored without
+  labels.
 \item \textbf{NYU test split sourcing.} Both canonical sources were
   unreachable (the DenseDepth mirror returns 403 and the NYU host
   refuses connections); we used a mirror of the same 654-image Eigen
   test split and verified image count, units, and depth range.
 \item \textbf{Defocus veiling.} In the layered renderer, blurred
-  near-field texture bleeds over flat surfaces, which lifts the focus
-  measure there (the synthetic corridor's flat ceiling reaches
-  $w \approx 0.4$). This is a genuine failure mode of the focus
-  measurement rather than a renderer artifact and it caps how far we
-  can trust $w$ at occlusion boundaries.
-\item \textbf{Rejected fits.} On scenes where the learned prediction
-  anticorrelates with the focus estimate, the scale fit is degenerate
-  ($s \le 0$); we fall back to the bounded uncalibrated output per the
-  proposal rather than emit bad metric depth.
+  near-field texture bleeds over flat surfaces and lifts the focus
+  measure there (the corridor's flat ceiling reads $w \approx 0.4$).
+  That is a genuine failure mode of the measurement, not a renderer
+  artifact, and it caps how much we can trust $w$ at occlusion
+  boundaries.
+\item \textbf{Rejected fits.} Where the learned prediction
+  anticorrelates with the focus estimate, the scale fit degenerates
+  ($s \le 0$). On those scenes the refined output falls back to the
+  bounded, uncalibrated scale fit (the proposal's stated fallback)
+  rather than emit bad metric depth.
 \end{itemize}
 \end{reportbox}
 
 \begin{reportbox}{Changes from Proposal}
 DDFF 12-Scene moved from a quantitative to a qualitative dataset: the
-verification the proposal made conditional showed the released test
-stacks carry no labels. Rendered scenes now carry the quantitative
-refinement evaluation, split into tuning and held-out sets so reported
-numbers are not fit on the evaluation scenes. Three additions beyond
-the proposed method: an all-focus guided smoothing stage on the DFF
-baseline (normalized convolution in inverse depth, weighted by
-confidence); a combined system output that uses the refined depth where
-calibration succeeds and the focus estimate where it is rejected, which
-strictly dominates both components on the held-out scenes; and a
-degenerate-fit guard replacing silent bad calibration.
+released test stacks carry no labels, as the proposal's conditional
+verification found. Rendered scenes now carry the quantitative
+refinement evaluation, split into tuning and held-out sets so the
+reported numbers are not fit on the evaluation scenes. The proposal
+scheduled scale fitting and refinement for Oct 30--Nov 13; that stage
+already runs on the synthetic scenes, roughly three weeks ahead.
+Three additions beyond the proposed method: an all-focus guided
+smoothing stage on the DFF baseline (normalized convolution in
+inverse depth, weighted by confidence); a combined output that falls
+back to the focus estimate on rejected calibrations and beats either
+component alone on the held-out scenes; and a degenerate-fit guard
+replacing silent bad calibration.
 \end{reportbox}
 
 \begin{reportbox}{Next Steps}
 \begin{itemize}
-\item Finish the DA-V2 model-size and metric-head benchmark table and
-  fold it into the webpage and presentation.
+\item Publish per-checkpoint runtimes alongside the NYU benchmark
+  (already logged, not yet in the table) and fold the finished model
+  comparison into the webpage.
 \item Extend the DDFF qualitative evaluation to more stacks and, time
   permitting, phone-captured focal stacks as a second real source.
-\item Finish the results figures and tables for the project webpage;
-  keep the presentation deck in step with the final numbers.
+\item Build the presentation deck and keep the webpage figures in
+  step with the final numbers.
 \end{itemize}
 \end{reportbox}
 
