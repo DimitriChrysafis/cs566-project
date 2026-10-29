@@ -136,16 +136,18 @@ ViT-L & least squares & \textbf{0.055} & \textbf{0.277} & \textbf{0.961} \\
 Metric-Indoor-S & none (raw metric) & 0.218 & 0.650 & 0.670 \\
 Metric-Indoor-S & least squares & 0.077 & 0.353 & 0.936 \\
 \bottomrule
-\end{tabular}
+\end{tabular}\\[2pt]
+\captext{Table~1. DA-V2 by checkpoint and alignment on the NYU-Depth
+v2 Eigen test split; bold marks the column best.}
 \end{center}
 The affine fit matters: a median scale alone collapses accuracy
 ($\delta_1$ 0.39), so we model $q = s\hat d + t$ instead of a
 scale-only alignment. Robust IRLS (iteratively reweighted least
 squares) buys a small, consistent gain over plain least squares.
-Bigger backbones help less than expected (S $\to$ L gains
-$\approx 0.005$ $\delta_1$ at 4$\times$ the runtime on MPS), so ViT-S
+Bigger backbones help less than expected (S $\to$ L adds
+$\approx 0.005$ $\delta_1$ at ${\approx}4\times$ the MPS runtime), so ViT-S
 stays the project baseline. The metric indoor checkpoint has a real
-scale prior but is biased on NYU (0.218 unaligned), and even aligned,
+scale prior but is biased on NYU (0.218 unaligned), and even aligned
 it trails the relative models.
 
 Synthetic focal stacks (10 frames, focus 0.9--7\,m, thin-lens blur
@@ -165,11 +167,14 @@ DA-V2 + scale fit from focus & 0.308 & 1.614 & 0.459 \\
 Refined (ours) & 0.259 & 1.483 & 0.575 \\
 Combined (ours) & \textbf{0.206} & \textbf{1.284} & 0.704 \\
 \bottomrule
-\end{tabular}
+\end{tabular}\\[2pt]
+\captext{Table~2. Held-out mean over the four eval scenes; combined
+falls back to the focus estimate on the rejected calibration
+(slanted).}
 \end{center}
 The focus baseline is accurate where texture exists ($\delta_1$
-0.89--1.00 on textured regions) and degrades on flat surfaces, which
-is exactly where the confidence map reads low ($\bar w \approx
+0.89--1.00 on textured regions) and degrades on flat surfaces, exactly
+where the confidence map reads low ($\bar w \approx
 0.06$--0.26 textureless, 0.26--0.66 textured). All-focus guided
 smoothing recovers part of that loss (textureless AbsRel 0.77 $\to$
 0.61 on held-out scenes) but can smear confident edges into large flat
@@ -185,9 +190,13 @@ ground truth. The \emph{combined} system falls back to the focus
 estimate on rejected calibrations; per scene it matches the better
 component, and on the held-out mean it beats both (0.206 vs.\ 0.259
 refined, 0.221 focus). DA-V2 underperforms the focus baseline on our
-scenes even with oracle alignment, a plausible outcome given how far
-the renderer sits from its training distribution, so we read this
+scenes even with oracle alignment, plausible given how far the
+renderer sits from its training distribution, so we read this
 benchmark as a stress test rather than a real-data statement.
+Ablations on the tuning scenes: 2--3-frame stacks collapse the focus
+estimate (AbsRel 10.5--114.9 vs.\ 0.12--0.24 at 5--10 frames), and
+confidence weighting cuts both ways (refined AbsRel 0.188 vs.\ 0.210
+uniform on stairs, but 0.164 vs.\ 0.114 on gallery).
 \begin{center}
 \includegraphics[width=\linewidth]{refine_corridor.pdf}\\[2pt]
 \captext{Fig.~1. Corridor, a held-out calibrated scene: input RGB,
@@ -248,8 +257,8 @@ calibration.
 \begin{reportbox}{Next Steps}
 \begin{itemize}
 \item Publish per-checkpoint runtimes on the webpage next to the NYU
-  benchmark (already logged in the CSVs; the S/B/L and metric
-  comparison is already up). Held-out evaluation and webpage work run
+  benchmark (the S/B/L and metric comparison is already up; runtimes
+  are in the CSVs). Held-out evaluation and webpage work run
   Nov 14--24.
 \item Extend the DDFF qualitative evaluation to more stacks and, time
   permitting, phone-captured focal stacks as a second real source.
