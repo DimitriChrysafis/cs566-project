@@ -88,10 +88,8 @@ def main():
     nyu_panels()
     synth_panels()
     ddff_panels()
-    import shutil
-    mid = ROOT / "report" / "midterm_report.pdf"
-    if mid.exists():
-        shutil.copy(mid, ASSETS / "midterm.pdf")
+    import copy_assets
+    copy_assets.main()
     print("assets written to", ASSETS)
 
 
