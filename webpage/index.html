@@ -55,7 +55,7 @@
 <figcaption>Fig. 1. Proposed combination of learned relative depth and focus measurements.</figcaption>
 </figure>
 
-<p>In short: DA-V2 Large aligns to &delta;<sub>1</sub> = 0.961 on NYU-Depth v2 (Table 1), and on the held-out synthetic scenes the combined system reaches AbsRel 0.206 against 0.233 for the focus baseline alone, falling back to the focus estimate whenever scale calibration is rejected (Table 2).</p>
+<p>In short: DA-V2 Large aligns to &delta;<sub>1</sub> = 0.961 on NYU-Depth v2 (Table 1), and on the held-out synthetic scenes the combined system reaches AbsRel 0.206 against 0.232 for the focus baseline alone, falling back to the focus estimate whenever scale calibration is rejected (Table 2).</p>
 
 <h2>Motivation</h2>
 <p>A single RGB image does not determine metric scale: a small nearby object and a large distant one can produce identical projections, so appearance fixes depth only up to an unknown scale and shift. Benchmark numbers like those in Table 1 hide this, because every prediction is aligned to ground truth before scoring; a deployed system does not get that alignment.</p>
@@ -69,7 +69,7 @@
 <h2>Methods</h2>
 
 <h3>Learned baseline</h3>
-<p>The reference image is passed through Depth Anything V2 (ViT-S) using the published weights, without retraining. The model produces a relative inverse-depth map <i>d&#770;</i>(<b>x</b>) that captures scene structure but not absolute scale.</p>
+<p>The sharpest frame of the stack, chosen by a global focus measure over all frames, serves as the reference image. It is passed through Depth Anything V2 (ViT-S) using the published weights, without retraining. The model produces a relative inverse-depth map <i>d&#770;</i>(<b>x</b>) that captures scene structure but not absolute scale.</p>
 
 <h3>Depth from focus</h3>
 <p>A focal stack is captured from a fixed viewpoint at calibrated focus settings. At each pixel we measure sharpness across the stack with the modified Laplacian (Nayar and Nakagawa, 1994) and interpolate parabolically around the peak setting, giving a focus depth <i>z</i><sub><i>F</i></sub>(<b>x</b>). Flat or ambiguous focus curves receive low confidence <i>w</i>(<b>x</b>) &isin; [0, 1]; this occurs mainly on textureless surfaces and near depth boundaries. The sharpest pixels across the stack are fused into an all-focus image, which guides a confidence-weighted normalized-convolution smoothing of the raw estimate in inverse-depth space.</p>
@@ -78,7 +78,7 @@
 <p>Confident focus measurements constrain an affine transformation of the predicted inverse depth plus a local correction <i>r</i>:</p>
 <p class="eq"><i>q</i>(<b>x</b>) = <i>s</i>&thinsp;<i>d&#770;</i>(<b>x</b>) + <i>t</i> + <i>r</i>(<b>x</b>),&emsp;<i>z</i>(<b>x</b>) = <i>q</i>(<b>x</b>)<sup>&minus;1</sup></p>
 <p class="eq">min<sub><i>s</i>,<i>t</i>,<i>r</i></sub>&thinsp;&sum;<sub><b>x</b></sub> <i>w</i>(<b>x</b>)&thinsp;&rho;(<i>q</i>(<b>x</b>) &minus; <i>z</i><sub><i>F</i></sub>(<b>x</b>)<sup>&minus;1</sup>) + &lambda;&thinsp;&sum;<sub><b>x</b></sub> ||&nabla;<i>r</i>(<b>x</b>)||<sup>2</sup> + &mu;&thinsp;&sum;<sub><b>x</b></sub> <i>r</i>(<b>x</b>)<sup>2</sup>,&emsp;<i>q</i>(<b>x</b>) &ge; &epsilon; &gt; 0</p>
-<p>Global scale (<i>s</i>, <i>t</i>) is fit first with <i>r</i> = 0, then local corrections are allowed. The Huber loss &rho; limits the influence of unreliable focus measurements; the penalties on &nabla;<i>r</i> and <i>r</i> discourage abrupt or large changes where focus evidence is weak. If the learned prediction disagrees with the focus measurements (nonpositive fitted slope, or extreme residuals), calibration is rejected and the combined system output falls back to the focus estimate, so the method never does worse than either of its components.</p>
+<p>Global scale (<i>s</i>, <i>t</i>) is fit first with <i>r</i> = 0, then local corrections are allowed. The Huber loss &rho; limits the influence of unreliable focus measurements; the penalties on &nabla;<i>r</i> and <i>r</i> discourage abrupt or large changes where focus evidence is weak. If the learned prediction disagrees with the focus measurements (nonpositive fitted slope, or too few confident pixels to support the fit), calibration is rejected and the combined system output falls back to the focus estimate, so a degenerate fit cannot make the output worse than the focus estimate alone.</p>
 
 <h2>Implementation details</h2>
 
@@ -110,11 +110,11 @@
 <tbody>
 <!--RESULTS:NYU-->
 <tr><td>DA-V2 Small (scale+shift)</td><td class="num">0.062</td><td class="num">0.297</td><td class="num">0.956</td></tr>
-<tr><td>DA-V2 Small (robust IRLS)</td><td class="num">0.058</td><td class="num">0.292</td><td class="num">0.958</td></tr>
+<tr><td>DA-V2 Small (robust IRLS)</td><td class="num">0.057</td><td class="num">0.292</td><td class="num">0.958</td></tr>
 <tr><td>DA-V2 Small (median scale)</td><td class="num">0.494</td><td class="num">2.349</td><td class="num">0.393</td></tr>
 <tr><td>DA-V2 Base (scale+shift)</td><td class="num">0.057</td><td class="num">0.283</td><td class="num">0.959</td></tr>
 <tr><td>DA-V2 Large (scale+shift)</td><td class="num">0.055</td><td class="num">0.277</td><td class="num">0.961</td></tr>
-<tr><td>DA-V2 Metric Indoor (unaligned)</td><td class="num">0.218</td><td class="num">0.650</td><td class="num">0.670</td></tr>
+<tr><td>DA-V2 Metric Indoor (unaligned)</td><td class="num">0.218</td><td class="num">0.651</td><td class="num">0.670</td></tr>
 <tr><td>DA-V2 Metric Indoor (aligned)</td><td class="num">0.077</td><td class="num">0.353</td><td class="num">0.936</td></tr>
 <!--/RESULTS:NYU-->
 </tbody>
@@ -126,14 +126,16 @@
 </figure>
 
 <h3>Synthetic scenes</h3>
-<p class="tabcap">Table 2. Held-out synthetic scenes (corridor, objects, slanted, shelves). <i>Combined</i> uses the refined output where calibration succeeds and the focus estimate where it is rejected.</p>
+<p class="tabcap">Table 2. Held-out synthetic scenes (corridor, objects, slanted, shelves). <i>Constant depth</i> predicts one weighted-mean depth per scene, a sanity floor. <i>DA-V2 Metric Indoor</i> is the monocular metric checkpoint scored with no alignment — it is what the stack has to beat to justify existing. <i>Oracle-aligned</i> fits an affine to ground truth, which no deployed system can do. <i>Combined</i> uses the refined output where calibration succeeds and the focus estimate where it is rejected.</p>
 <table>
 <thead><tr><th>Method</th><th class="num">AbsRel</th><th class="num">RMSE</th><th class="num">&delta;<sub>1</sub></th></tr></thead>
 <tbody>
 <!--RESULTS:SYNTH-->
-<tr><td>DFF raw</td><td class="num">0.233</td><td class="num">1.552</td><td class="num">0.732</td></tr>
+<tr><td>Constant depth</td><td class="num">0.451</td><td class="num">2.310</td><td class="num">0.179</td></tr>
+<tr><td>DFF raw</td><td class="num">0.232</td><td class="num">1.562</td><td class="num">0.737</td></tr>
 <tr><td>DFF + all-focus smooth</td><td class="num">0.221</td><td class="num">1.510</td><td class="num">0.702</td></tr>
-<tr><td>Aligned DA-V2</td><td class="num">0.271</td><td class="num">1.524</td><td class="num">0.548</td></tr>
+<tr><td>DA-V2 (oracle-aligned)</td><td class="num">0.271</td><td class="num">1.524</td><td class="num">0.548</td></tr>
+<tr><td>DA-V2 Metric Indoor (unaligned)</td><td class="num">0.449</td><td class="num">2.471</td><td class="num">0.166</td></tr>
 <tr><td>DA-V2 + scale fit</td><td class="num">0.308</td><td class="num">1.614</td><td class="num">0.459</td></tr>
 <tr><td>Refined (ours)</td><td class="num">0.259</td><td class="num">1.483</td><td class="num">0.575</td></tr>
 <tr><td>Combined (ours)</td><td class="num">0.206</td><td class="num">1.284</td><td class="num">0.704</td></tr>
@@ -168,8 +170,8 @@
 <tbody>
 <!--RESULTS:ABL_STACKSIZE-->
 <tr><td>2</td><td>DFF</td><td colspan="3"><i>degenerate</i></td></tr>
-<tr><td>2</td><td>Refined</td><td class="num">0.647</td><td class="num">3.070</td><td class="num">0.116</td></tr>
-<tr><td>3</td><td>DFF</td><td class="num">32.083</td><td class="num">250.882</td><td class="num">0.451</td></tr>
+<tr><td>2</td><td>Refined</td><td class="num">0.886</td><td class="num">20.578</td><td class="num">0.352</td></tr>
+<tr><td>3</td><td>DFF</td><td class="num">0.303</td><td class="num">1.592</td><td class="num">0.480</td></tr>
 <tr><td>3</td><td>Refined</td><td class="num">0.419</td><td class="num">1.696</td><td class="num">0.354</td></tr>
 <tr><td>5</td><td>DFF</td><td class="num">0.222</td><td class="num">1.373</td><td class="num">0.717</td></tr>
 <tr><td>5</td><td>Refined</td><td class="num">0.248</td><td class="num">1.338</td><td class="num">0.692</td></tr>
@@ -179,7 +181,7 @@
 </tbody>
 </table>
 
-<p class="tabcap">Table 4. Confidence weighting in the data term on the tuning scenes. Uniform weights are a little better on gallery and a little worse on stairs; the means are nearly tied.</p>
+<p class="tabcap">Table 4. Confidence weighting in the data term on the tuning scenes. Uniform weighting actually edges out confidence weighting on the tuning mean (0.162 versus 0.176 AbsRel), driven by gallery; we keep the confidence term anyway since the same <i>w</i> drives the coverage check and the guided smoothing.</p>
 <table>
 <thead><tr><th>Data weight</th><th class="num">AbsRel</th><th class="num">RMSE</th><th class="num">&delta;<sub>1</sub></th></tr></thead>
 <tbody>
@@ -231,7 +233,7 @@
 <figcaption>Fig. 9. Three more DDFF test stacks (000, 044, 072): sharpest frame, focus estimate, confidence, refined depth. Stack 000 is a flat painted wall: confidence is near zero almost everywhere, so the refined output is essentially the learned prior.</figcaption>
 </figure>
 
-<p>One note on the DDFF results: the public test archive contains focal stacks but no registered depth (the official ground truth was withheld for the benchmark server), and the per-frame focus distances are not recorded, so we reconstruct them from the refocus geometry in the paper. Quantitative numbers on real stacks are therefore not meaningful; the qualitative panels above still exercise the full pipeline on camera-captured data. Quantitative evaluation of the refinement uses the rendered scenes, where the true depth and focus distances are known exactly.</p>
+<p>One note on the DDFF results: the public test archive contains focal stacks but no registered depth (the official ground truth was withheld for the benchmark server), and the per-frame focus distances are not recorded, so we reconstruct them from the refocus geometry in the paper. As a check on the assumed slice order we rank-correlate each stack's focus estimate with the learned prior in both directions: 15 of the 120 stacks fit better reversed, and with per-stack confidence normalization calibration is accepted on 110 of 120 (<a href="assets/data/ddff_refine.csv">per-stack rows</a>). Quantitative numbers on real stacks are therefore not meaningful; the qualitative panels above still exercise the full pipeline on camera-captured data. Quantitative evaluation of the refinement uses the rendered scenes, where the true depth and focus distances are known exactly.</p>
 
 <h3>Failure cases</h3>
 <figure>
@@ -240,10 +242,27 @@
 </figure>
 
 <h2>Discussion and limitations</h2>
-<p>Focus is a strong cue where it works and no cue where it does not. On the textured corridor walls the raw focus estimate reaches AbsRel 0.026, better than anything else in Table 2; on the textureless ceiling of the same scene it is 0.42, and on the mostly flat objects scene the mean confidence is only 0.14. The confidence map tracks this split closely, which is what lets the refinement lean on the learned prior exactly where the stack is uninformative.</p>
+<p>Focus is a strong cue where it works and no cue where it does not. On the textured corridor walls the raw focus estimate reaches AbsRel 0.026, better than anything else in Table 2; on the textureless regions of the same scene (the ceiling and flat back wall) it is 0.42, and on the mostly flat objects scene the mean confidence is only 0.14. The confidence map tracks this split closely, which is what lets the refinement lean on the learned prior exactly where the stack is uninformative.</p>
+<p class="tabcap">Table 7. The same eval scenes split by texture (pixels are partitioned on a median texture measure). The learned prior is flat across the split; every focus-based method swings with it, and on textured pixels the combined output posts the lowest mean error we measured.</p>
+<table>
+<thead><tr><th>Method</th><th class="num">AbsRel low-tex</th><th class="num">AbsRel high-tex</th><th class="num">&delta;<sub>1</sub> low-tex</th><th class="num">&delta;<sub>1</sub> high-tex</th></tr></thead>
+<tbody>
+<!--RESULTS:TEXTURE-->
+<tr><td>Constant depth</td><td class="num">0.474</td><td class="num">0.429</td><td class="num">0.158</td><td class="num">0.200</td></tr>
+<tr><td>DFF raw</td><td class="num">0.248</td><td class="num">0.217</td><td class="num">0.665</td><td class="num">0.808</td></tr>
+<tr><td>DFF + all-focus smooth</td><td class="num">0.253</td><td class="num">0.189</td><td class="num">0.628</td><td class="num">0.777</td></tr>
+<tr><td>DA-V2 (oracle-aligned)</td><td class="num">0.271</td><td class="num">0.272</td><td class="num">0.522</td><td class="num">0.575</td></tr>
+<tr><td>DA-V2 Metric Indoor (unaligned)</td><td class="num">0.473</td><td class="num">0.424</td><td class="num">0.165</td><td class="num">0.166</td></tr>
+<tr><td>DA-V2 + scale fit</td><td class="num">0.334</td><td class="num">0.283</td><td class="num">0.405</td><td class="num">0.512</td></tr>
+<tr><td>Refined (ours)</td><td class="num">0.295</td><td class="num">0.223</td><td class="num">0.524</td><td class="num">0.627</td></tr>
+<tr><td>Combined (ours)</td><td class="num">0.233</td><td class="num">0.180</td><td class="num">0.664</td><td class="num">0.745</td></tr>
+<!--/RESULTS:TEXTURE-->
+</tbody>
+</table>
 <p>Depth boundaries are the harder failure. Defocus blur mixes foreground and background at occlusion edges, so focus curves there can peak confidently at a wrong depth. The trimmed IRLS fit drops the worst 10% of residuals and removes most of these, but objects still shows the cost: the refined output (0.472) ends up worse than the scale fit alone (0.439), pulled by confident wrong measurements around the object edges.</p>
 <p>The rejection rule pays for itself on the slanted scene, where the learned prediction and the focus depths disagree enough that the fitted slope comes out nonpositive. Calibration is rejected and the combined system returns the focus estimate (AbsRel 0.087) instead of the merged result (0.297). The worst case is then the better of the two inputs rather than a broken merge; the cost is that genuinely useful corrections are occasionally thrown out with the bad ones.</p>
-<p>Two qualifications on the real data. The DDFF test split has no public ground truth, and the measured confidences are an order of magnitude below the synthetic scenes (roughly 0.03&ndash;0.05 across the 120 test stacks, versus 0.14&ndash;0.57 on ours), partly because refocused lightfield slices differ more subtly than real defocus. Quantitative claims on DDFF would not be meaningful, so we report qualitative output only, though the full pipeline does run end to end on camera-captured data.</p>
+<p>The combined row is not uniformly better, though. On shelves the accepted merge (0.212) still trails the smoothed focus estimate (0.188) it would have fallen back to, and on objects it is worse than every input. The rejection gate only guards degenerate fits, not mediocre merges, and on the aggregate numbers the combined system buys mean error at a small &delta;<sub>1</sub> cost (0.704 versus 0.737 for raw DFF): raw per-pixel maxima stay sharp exactly where texture exists, which is what &delta;<sub>1</sub> rewards. One more caveat on precision: these are single-seed results, and the same nominal configuration moved by up to a factor of two across seeds in our ablation runs (stairs refined AbsRel 0.090 versus 0.188), so differences of a few points on four scenes should be read as margins, not proofs.</p>
+<p>Two qualifications on the real data. The DDFF test split has no public ground truth, and the measured confidences are well below the synthetic scenes (roughly 0.01&ndash;0.03 across the 120 test stacks, versus 0.14&ndash;0.57 on ours), partly because refocused lightfield slices differ more subtly than real defocus. The refinement there also runs with &lambda; = 3 and per-stack confidence renormalization, since the unnormalized confidences are too low for the Table 2 settings to engage the focus term. Quantitative claims on DDFF would not be meaningful, so we report qualitative output only, though the full pipeline does run end to end on camera-captured data.</p>
 <p>Where this leaves the method: the combination helps exactly when the stack carries usable texture and the learned prior is roughly right (corridor, shelves); it adds little when the stack is mostly flat (objects), and it protects itself when the two disagree (slanted). Obvious next steps are a learned confidence that recognizes boundary mixing rather than only peak flatness, and real stacks with recorded focus distances so the cue can be quantified off synthetic data.</p>
 
 <h2>Reports</h2>
