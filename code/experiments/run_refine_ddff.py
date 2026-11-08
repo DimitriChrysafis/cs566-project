@@ -36,15 +36,25 @@ def main():
     import argparse
     p = argparse.ArgumentParser()
     p.add_argument("--scenes", default="test_000,test_007,test_013,test_044,test_058,test_072")
+    p.add_argument("--all", action="store_true",
+                   help="run every test stack, for order/calibration coverage")
+    p.add_argument("--csv", default=None,
+                   help="write per-scene rho_fwd/rho_rev/calibrated rows to results/<name>")
     p.add_argument("--device", default=None)
     args = p.parse_args()
 
     FIGS.mkdir(parents=True, exist_ok=True)
     model = DAV2(device=args.device)
     available = set(list_scenes())
+    panel_scenes = {"test_000", "test_007", "test_013", "test_044", "test_058", "test_072"}
+    names = sorted(available) if args.all else \
+        [s.strip() for s in args.scenes.split(",") if s.strip() in available]
+    rows = []
     order_checked = False
-    for name in [s.strip() for s in args.scenes.split(",") if s.strip() in available]:
+    for name in names:
         d = load_dff_scene(None, name)
+        if d["stack"] is None:
+            continue
         stack = np.asarray(d["stack"], np.float32) / 255.0
         zfs = np.asarray(d["focdist"], np.float64)
 
@@ -67,12 +77,26 @@ def main():
 
         print(f"{name}: calibrated={out['calibrated']} s={out['s']:.3f} t={out['t']:.4f} "
               f"conf={conf.mean():.3f} rho_fwd={fwd:.3f} rho_rev={rev:.3f}")
-        save_panels([
-            dict(img=rgb, title="sharpest frame"),
-            dict(depth=z_f, title="focus z_F"),
-            dict(conf=conf, title="conf"),
-            dict(depth=z_ref, title="dav2+refine"),
-        ], FIGS / f"ddff_refine_{name}.pdf")
+        rows.append(dict(scene=name, rho_fwd=round(fwd, 4), rho_rev=round(rev, 4),
+                         reversed=int(rev > fwd), calibrated=out["calibrated"],
+                         s=round(out["s"], 4), t=round(out["t"], 5),
+                         conf=round(float(conf.mean()), 4)))
+        if name in panel_scenes:
+            save_panels([
+                dict(img=rgb, title="sharpest frame"),
+                dict(depth=z_f, title="focus z_F"),
+                dict(conf=conf, title="conf"),
+                dict(depth=z_ref, title="dav2+refine"),
+            ], FIGS / f"ddff_refine_{name}.pdf")
+
+    if args.csv and rows:
+        from depthbench import metrics
+        metrics.write_csv(rows, RES / args.csv)
+        n_rev = sum(r["reversed"] for r in rows)
+        n_cal = sum(bool(r["calibrated"]) for r in rows)
+        print(f"{len(rows)} stacks: {n_rev} prefer reversed order "
+              f"({n_rev / len(rows):.0%}), {n_cal} calibrated "
+              f"({n_cal / len(rows):.0%})")
 
 
 if __name__ == "__main__":

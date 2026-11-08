@@ -10,7 +10,7 @@ note: requested id depth-anything/Depth-Anything-V2-Metric-Hypersim-Small-hf
 does not exist on hf; the hf-format hypersim (indoor) metric checkpoints are
 named Metric-Indoor-*-hf, so we use ...-Metric-Indoor-Small-hf.
 
-crops: full = all valid px (gt in (0,10]); eigen = rows 45:472, cols 41:602.
+crops: full = all valid px (gt in (0,10]); eigen = rows 45:471, cols 41:601.
 alignment is fit inside each crop's valid mask, matching eval protocol.
 """
 
@@ -39,7 +39,7 @@ from depthbench.data.nyu import iter_nyu, nyu_test_dir
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GT_MAX = 10.0
-EIGEN_SLICES = (slice(45, 472), slice(41, 602))
+EIGEN_SLICES = (slice(45, 471), slice(41, 601))
 
 MODELS = [
     ("dav2s", "depth-anything/Depth-Anything-V2-Small-hf", "rel"),
