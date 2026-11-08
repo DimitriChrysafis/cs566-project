@@ -5,11 +5,15 @@ Site source: `webpage/` (static HTML/CSS, published as-is). Tables are generated
 `webpage/assets/` by `webpage/make_assets.py`. Only `webpage/` gets deployed, so
 everything the page links to has to be inside it or at an absolute URL.
 
-Status key: **have** = already on the page, **new** = to add, **final** = add at the final checkpoint.
+Status key: **have** = on the page now, **staged** = asset copied into
+`webpage/assets/` but not referenced by the page yet, **new** = to add,
+**final** = add at the final checkpoint.
 
 ## 1. Header
 - Title, authors, course line (have)
-- Nav: proposal · midterm · final report · code · download (fix the proposal link; add final and download)
+- Nav: proposal · midterm · code · "presentation · dec" placeholder (have;
+  proposal link now points at `assets/proposal.pdf`, fixed)
+- new: final report link, release/download link
 
 ## 2. Abstract + teaser
 - Abstract paragraph (have)
@@ -18,9 +22,9 @@ Status key: **have** = already on the page, **new** = to add, **final** = add at
 
 ## 3. Motivation and background (new, adapted from the proposal)
 - Why one image can't give metric scale; why defocus can
-- Blur-vs-depth curve (`proposal/figures/blur_curve.pdf`), which shows why focus pins down absolute depth
+- Blur-vs-depth curve: `assets/blur_curve.png` (staged), shows why focus pins down absolute depth
 
-## 4. Method (have; tighten)
+## 4. Method (have)
 - 4.1 Learned baseline: DA-V2 S/B/L plus the metric indoor checkpoint
 - 4.2 Depth from focus: modified Laplacian, parabolic peak fit, confidence, all-focus guided smoothing
 - 4.3 Scale fit + refinement: objective, Huber/IRLS, λ/μ regularizers, rejection and fallback rule
@@ -32,30 +36,36 @@ Status key: **have** = already on the page, **new** = to add, **final** = add at
 - Alignment variants (`refine.py`, `metrics.py`): least-squares vs median vs robust IRLS,
   and why median scale fails (Table 1 row)
 - DDFF data notes: no public GT, focus distances rebuilt from the refocus geometry
-- Figure: `synth_dff_corridor`, the two focus slices → DFF depth → confidence → error
+  (partially covered by the note under Fig. 5; fold into this section)
+- Figure: `assets/synth_dff_corridor.png` (staged), the two focus slices → DFF depth → confidence → error
 
 ## 6. Experiments and results
 - 6.1 Metrics and datasets paragraph (have)
-- 6.2 NYU (Table 1, have) + new bar chart `nyu_models` (δ1, full vs Eigen crop) + `nyu_models_qual`
-- 6.3 Synthetic focal stacks (Table 2, have) + Fig. 3 corridor (have) + new per-scene
-  gallery: objects, shelves, stairs, gallery (`refine_*.pdf`)
+- 6.2 NYU: Table 1 (have) + Fig. 2 `nyu_qualitative.png` (have) + bar chart
+  `assets/nyu_models.png` and `assets/nyu_models_qual.png` (both staged)
+- 6.3 Synthetic focal stacks: Table 2 (have) + Fig. 3 corridor `synth_refinement.png` (have)
+  + per-scene gallery `assets/refine_{objects,shelves,stairs,gallery}.png` (all staged)
 - 6.4 Ablations (new): stack size, confidence weighting, λ, μ, built from `results/ablation_*.csv`
-  (extend `build.py` with an `ABLATION` table; show the refined method on the tuning scenes.
-  For the stack-size table, mark the N=2 focus rows as degenerate rather than printing AbsRel ≈ 115)
-- 6.5 Real focal stacks, DDFF (Fig. 5, have) + new strip of 2–3 more `ddff_refine_test_*` panels
-- 6.6 Failure cases (Fig. 4, have): slanted-scene rejection, plus a DDFF low-confidence example
+  (csvs already staged in `assets/data/`; extend `build.py` with an `ABLATION` table; show the
+  refined method on the tuning scenes. For the stack-size table, mark the N=2 focus rows as
+  degenerate rather than printing AbsRel ≈ 115)
+- 6.5 Real focal stacks, DDFF: Fig. 5 `ddff_qualitative.png` + caveat note (have) + strip of
+  2–3 more panels `assets/ddff_{000,044,072}.png` (all staged)
+- 6.6 Failure cases: Fig. 4 `failure_cases.png` (have): slanted-scene rejection,
+  plus a DDFF low-confidence example
 - final: videos or GIFs, e.g. stepping through a focal stack next to the depth estimate
 
 ## 7. Discussion and limitations (final)
 - When focus helps vs hurts, the texture dependence, what the fallback buys, and future work
 
 ## 8. Reports
-- Proposal PDF, midterm PDF (have), final report PDF (final), presentation slides (final)
+- Proposal PDF (have, `assets/proposal.pdf`), midterm PDF (have, `assets/midterm.pdf`)
+- final: final report PDF (`assets/final.pdf`), presentation slides
 
 ## 9. Code and downloads
 - GitHub link + source .zip (have)
-- new: tagged release with a zip of `code/` plus `run_demo.sh` (one-command run on one synthetic scene)
-- new: results CSVs for download (`assets/data/*.csv`)
+- new: tagged v1.0 release with a zip of `code/` plus `run_demo.sh` (see `docs/release.md`)
+- new: results CSVs for download (csvs already staged in `assets/data/`; just needs links)
 - new: a short "how to run" block copied from the README
 
 ## 10. References (new)
@@ -65,23 +75,23 @@ Status key: **have** = already on the page, **new** = to add, **final** = add at
 
 ---
 
-## Files to copy into `webpage/assets/`
+## Asset status (`webpage/assets/`)
 
-PDF figures can't go in an `<img>`, so convert them to PNG (`sips -s format png -Z 1600 in.pdf --out out.png`
-works on macOS). Do the copies in `make_assets.py`, the way `midterm.pdf` is already handled.
+PDF figures can't go in an `<img>`, so they are converted to PNG (`sips -s format png -Z 1600 in.pdf --out out.png`
+on macOS) by `make_assets.py`.
 
-| Source | Destination | Used in | Why |
+| Source | Destination | Used in | Status |
 |---|---|---|---|
-| `proposal/project_proposal.pdf` | `assets/proposal.pdf` | nav, §8 | **Fixes the broken link.** The page currently points at `../proposal/`, which isn't deployed |
-| `report/midterm_report.pdf` | `assets/midterm.pdf` | nav, §8 | Already there (byte-identical); keep it synced |
-| `proposal/figures/blur_curve.pdf` | `assets/blur_curve.png` | §3 | Explains the defocus cue |
-| `results/figs/synth_dff_corridor.pdf` | `assets/synth_dff_corridor.png` | §5 | Shows the DFF pipeline step by step |
-| `results/figs/nyu_models.pdf` | `assets/nyu_models.png` | §6.2 | Model-variant bar chart |
-| `results/figs/nyu_models_qual.pdf` | `assets/nyu_models_qual.png` | §6.2 | S/B/L qualitative comparison |
-| `results/figs/refine_{objects,shelves,stairs,gallery}.pdf` | `assets/refine_<scene>.png` | §6.3 | Per-scene gallery |
-| `results/figs/ddff_refine_test_{000,044,072}.pdf` | `assets/ddff_<id>.png` | §6.5 | More real-stack examples |
-| `results/*.csv` (except `nyu_dav2.csv` if size matters) | `assets/data/` | §9 | Downloadable numbers |
-| `report/final_report.pdf` (later) | `assets/final.pdf` | nav, §8 | Final checkpoint |
+| `proposal/project_proposal.pdf` | `assets/proposal.pdf` | nav, §8 | copied, linked |
+| `report/midterm_report.pdf` | `assets/midterm.pdf` | nav, §8 | copied, linked; keep synced |
+| `proposal/figures/blur_curve.pdf` | `assets/blur_curve.png` | §3 | copied, not linked yet |
+| `results/figs/synth_dff_corridor.pdf` | `assets/synth_dff_corridor.png` | §5 | copied, not linked yet |
+| `results/figs/nyu_models.pdf` | `assets/nyu_models.png` | §6.2 | copied, not linked yet |
+| `results/figs/nyu_models_qual.pdf` | `assets/nyu_models_qual.png` | §6.2 | copied, not linked yet |
+| `results/figs/refine_{objects,shelves,stairs,gallery}.pdf` | `assets/refine_<scene>.png` | §6.3 | copied, not linked yet |
+| `results/figs/ddff_refine_test_{000,044,072}.pdf` | `assets/ddff_<id>.png` | §6.5 | copied, not linked yet |
+| `results/*.csv` | `assets/data/` | §9 | copied, not linked yet |
+| `report/final_report.pdf` (later) | `assets/final.pdf` | nav, §8 | final checkpoint |
 
 Optional: `proposal/figures/dff_preliminary.pdf` → `assets/dff_preliminary.png`, as a history note
 ("what the proposal predicted").
