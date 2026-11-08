@@ -20,7 +20,9 @@ GROUP_COLS = ("method", "condition")
 SPLIT_COLS = ("split", "region")
 
 LABELS = {
-    "aligned_dav2": "Aligned DA-V2",
+    "aligned_dav2": "DA-V2 (oracle-aligned)",
+    "metric_dav2": "DA-V2 Metric Indoor (unaligned)",
+    "const": "Constant depth",
     "focus_raw": "DFF raw",
     "focus": "DFF + all-focus smooth",
     "scale_fit": "DA-V2 + scale fit",
@@ -248,6 +250,49 @@ def ablation_rows(name, path, by_method):
     return out
 
 
+def texture_rows(path):
+    """Eval-set rows from refine_synth.csv grouped by method x texture split."""
+    fields, rows = read_csv(path)
+    if not fields or not rows:
+        return []
+    mcol = find_col(fields, "method")
+    scol = find_col(fields, "split")
+    setcol = find_col(fields, "set")
+    mcols = {m: find_col(fields, m) for m in ("absrel", "delta1")}
+    if not (mcol and scol and setcol and all(mcols.values())):
+        return []
+    order, groups = [], {}
+    for r in rows:
+        if (r.get(setcol) or "").strip() != "eval":
+            continue
+        meth = (r.get(mcol) or "").strip()
+        split = (r.get(scol) or "").strip().lower()
+        if not meth or split not in ("low_tex", "high_tex"):
+            continue
+        if meth not in groups:
+            groups[meth] = {s: {m: [] for m in ("absrel", "delta1")}
+                            for s in ("low_tex", "high_tex")}
+            order.append(meth)
+        for m, c in mcols.items():
+            try:
+                groups[meth][split][m].append(float((r.get(c) or "").strip()))
+            except (TypeError, ValueError):
+                continue
+    out = []
+    for meth in order:
+        cells = []
+        for m in ("absrel", "delta1"):
+            for split in ("low_tex", "high_tex"):
+                vals = groups[meth][split][m]
+                cells.append(f"{sum(vals) / len(vals):.3f}" if vals else "—")
+        out.append(
+            f"<tr><td>{html.escape(LABELS.get(meth.lower(), meth))}</td>"
+            + "".join(f'<td class="num">{c}</td>' for c in cells)
+            + "</tr>"
+        )
+    return out
+
+
 def replace_region(text, name, rows):
     start = f"<!--RESULTS:{name}-->"
     end = f"<!--/RESULTS:{name}-->"
@@ -276,6 +321,11 @@ def main():
             print(f"{name}: wrote {len(order)} row(s)")
         else:
             print(f"{name}: markers not found in index.html, skipped")
+
+    tex = texture_rows(RESULTS / "refine_synth.csv")
+    if tex:
+        text, ok = replace_region(text, "TEXTURE", tex)
+        print(f"TEXTURE: wrote {len(tex)} row(s)" if ok else "TEXTURE: markers not found in index.html, skipped")
 
     for name, path, by_method in ABL_JOBS:
         rows = ablation_rows(name, path, by_method)
