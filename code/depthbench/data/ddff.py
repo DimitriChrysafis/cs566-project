@@ -119,4 +119,4 @@ def load_dff_scene(root, name):
                 "focdist": STACK_FOCUSDIST_M.copy(),
                 "camera": _camera(root),
             }
-    raise KeyError(f"no stack_{split} in {root}")
+    raise FileNotFoundError(f"no stack_{split} h5 under {root} (run experiments/fetch_data.py ddff)")

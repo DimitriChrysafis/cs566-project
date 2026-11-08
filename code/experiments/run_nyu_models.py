@@ -94,7 +94,7 @@ def _fit_irls(x, y, iters=5, delta=1.345):
         r = y - a @ beta
         mad = np.median(np.abs(r - np.median(r)))
         u = r / max(1.4826 * mad, 1e-12)
-        w = np.minimum(1.0, delta / np.abs(u))
+        w = np.minimum(1.0, delta / np.maximum(np.abs(u), 1e-12))
         sw = np.sqrt(w)
         beta = np.linalg.lstsq(a * sw[:, None], y * sw, rcond=None)[0]
     return float(beta[0]), float(beta[1])
@@ -205,6 +205,8 @@ def main():
     args = ap.parse_args()
 
     root = Path(args.nyu_root) if args.nyu_root else nyu_test_dir()
+    if not (root / "depth").is_dir():
+        sys.exit(f"nyu data not found at {root / 'depth'}; run fetch_data.py nyu first")
     out = Path(args.out)
     fig_dir = out / "figs"
     fig_dir.mkdir(parents=True, exist_ok=True)

@@ -47,8 +47,8 @@ def _fig(name, stack, gt, est, conf, path):
     fig = plt.figure(figsize=(7.2, 1.55))
     gs = fig.add_gridspec(1, 5, wspace=0.18)
     ax = [fig.add_subplot(gs[0, i]) for i in range(5)]
-    ax[0].imshow(np.clip(stack[0], 0, 1) if stack.ndim == 4 else stack[0], cmap="gray")
-    ax[1].imshow(np.clip(stack[-1], 0, 1) if stack.ndim == 4 else stack[-1], cmap="gray")
+    ax[0].imshow(np.clip(stack[0] / 255.0, 0, 1) if stack.ndim == 4 else stack[0], cmap="gray")
+    ax[1].imshow(np.clip(stack[-1] / 255.0, 0, 1) if stack.ndim == 4 else stack[-1], cmap="gray")
     if gt is not None:
         ax[2].imshow(gt, cmap="turbo_r")
         ax[3].imshow(est, cmap="turbo_r")

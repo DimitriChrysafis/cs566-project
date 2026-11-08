@@ -17,8 +17,11 @@ class DAV2:
         if device is None:
             device = "mps" if torch.backends.mps.is_available() else "cpu"
         self.device = torch.device(device)
-        self.processor = AutoImageProcessor.from_pretrained(model_id)
-        self.model = AutoModelForDepthEstimation.from_pretrained(model_id)
+        try:
+            self.processor = AutoImageProcessor.from_pretrained(model_id)
+            self.model = AutoModelForDepthEstimation.from_pretrained(model_id)
+        except Exception as e:
+            raise RuntimeError(f"could not load {model_id} (needs hf cache or network): {e}")
         self.model.to(self.device).eval()
 
     @torch.no_grad()

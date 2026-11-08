@@ -35,11 +35,18 @@ def depth_from_focus(stack, zfs, win=11, return_fm=False):
     """
     gray = to_gray(stack)
     zfs = np.asarray(zfs, np.float64)
+    if gray.shape[0] != len(zfs):
+        raise ValueError(f"stack has {gray.shape[0]} frames but {len(zfs)} focus distances")
     fm = np.stack([focus_measure(f, win) for f in gray])
     T = len(zfs)
-    k = np.clip(fm.argmax(0), 1, T - 2)
+    k = fm.argmax(0)
     yi, xi = np.indices(k.shape)
-    a, b, c = fm[k - 1, yi, xi], fm[k, yi, xi], fm[k + 1, yi, xi]
+    if T > 2:
+        k = np.clip(k, 1, T - 2)
+        a, c = fm[k - 1, yi, xi], fm[k + 1, yi, xi]
+    else:
+        a = c = fm[np.clip(1 - k, 0, T - 1), yi, xi]
+    b = fm[k, yi, xi]
 
     off = np.clip(0.5 * (a - c) / (a - 2 * b + c + 1e-9), -0.5, 0.5)
     t = np.clip(k + off, 0, T - 1)
@@ -101,7 +108,7 @@ def smooth_depth(z_est, conf, guide=None, sig_s=4.0, sig_r=0.08, blend=True):
                 kj = kj * np.exp(-((g[src] - g[ys, xs]) ** 2) / (2 * sig_r * sig_r))
             num[ys, xs] += kj * q[src]
             den[ys, xs] += kj
-    q_s = num / np.maximum(den, 1e-12)
+    q_s = np.divide(num, den, out=q.copy(), where=den > 0)
     if blend:
         q_s = c * q + (1 - c) * q_s
     return (1.0 / np.maximum(q_s, 1e-3)).astype(np.float32)

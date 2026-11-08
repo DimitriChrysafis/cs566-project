@@ -147,6 +147,8 @@ def main():
     args = ap.parse_args()
 
     root = Path(args.nyu_root) if args.nyu_root else nyu_test_dir()
+    if not (root / "depth").is_dir():
+        sys.exit(f"nyu data not found at {root / 'depth'}; run fetch_data.py nyu first")
     out = Path(args.out)
     fig_dir = out / "figs"
     pred_dir = out / "preds" / "nyu_dav2"

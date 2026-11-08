@@ -26,6 +26,8 @@ def iter_nyu(root=None, limit=None):
     root = Path(root) if root else nyu_test_dir()
     depth_dir = root / "depth"
     rgb_dir = root / "rgb"
+    if not depth_dir.is_dir():
+        raise FileNotFoundError(f"nyu depth dir not found: {depth_dir} (run experiments/fetch_data.py nyu)")
     names = sorted(p.stem for p in depth_dir.glob("*.npy"))
     if limit:
         names = names[: int(limit)]

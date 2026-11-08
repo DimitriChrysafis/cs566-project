@@ -292,7 +292,7 @@ def make_scene(kind, seed=0, w=480, h=320):
 def render_frame(scene, zf, cam=None, bins=28):
     cam = cam or Camera()
     color, depth = scene.color, scene.depth
-    inv = 1.0 / depth
+    inv = 1.0 / np.maximum(depth, 1e-3)
     edges = np.linspace(inv.min(), inv.max() + 1e-6, bins + 1)
     out = np.zeros_like(color)
     for i in range(bins):
