@@ -12,5 +12,7 @@ class Camera:
 
     def sigma(self, z, zf):
         z = np.asarray(z, np.float64)
+        if zf <= self.f_m:
+            return np.full_like(z, self.sigma_max)
         s = self.f_px * self.f_m / (2.0 * self.fstop * (zf - self.f_m)) * np.abs(1.0 - zf / z)
         return np.minimum(s, self.sigma_max)

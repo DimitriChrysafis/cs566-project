@@ -42,14 +42,15 @@ def depth_from_focus(stack, zfs, win=11, return_fm=False):
     k = fm.argmax(0)
     yi, xi = np.indices(k.shape)
     if T > 2:
-        k = np.clip(k, 1, T - 2)
-        a, c = fm[k - 1, yi, xi], fm[k + 1, yi, xi]
+        kp = np.clip(k, 1, T - 2)
+        a, c = fm[kp - 1, yi, xi], fm[kp + 1, yi, xi]
     else:
-        a = c = fm[np.clip(1 - k, 0, T - 1), yi, xi]
-    b = fm[k, yi, xi]
+        kp = k
+        a = c = fm[np.clip(1 - kp, 0, T - 1), yi, xi]
+    b = fm[kp, yi, xi]
 
     off = np.clip(0.5 * (a - c) / (a - 2 * b + c + 1e-9), -0.5, 0.5)
-    t = np.clip(k + off, 0, T - 1)
+    t = np.clip(kp + off, np.maximum(k - 0.5, 0), np.minimum(k + 0.5, T - 1))
     i0 = t.astype(int)
     frac = t - i0
     inv = 1.0 / zfs

@@ -34,7 +34,7 @@ import h5py
 import numpy as np
 
 DISP_TO_M = 0.14
-STACK_FOCUSDIST_M = np.linspace(0.5, 7.0, 10).astype(np.float32)
+STACK_FOCUSDIST_M = (DISP_TO_M / np.linspace(0.28, 0.02, 10)).astype(np.float32)
 
 
 def _repo_root():
