@@ -45,6 +45,22 @@ JOBS = (
     ("SYNTH", [(RESULTS / "refine_synth.csv", {"set": "eval"})]),
 )
 
+# Ablation tables: (marker name, csv, group by param+method). All use the
+# split == "all" rows averaged over the tuning scenes.
+ABL_JOBS = (
+    ("ABL_STACKSIZE", RESULTS / "ablation_stacksize.csv", True),
+    ("ABL_CONF", RESULTS / "ablation_conf.csv", False),
+    ("ABL_LAM", RESULTS / "ablation_lam.csv", False),
+    ("ABL_MU", RESULTS / "ablation_mu.csv", False),
+)
+
+ABL_SETTING_LABELS = {
+    "conf": "confidence <i>w</i>",
+    "uniform": "uniform (<i>w</i> = 1)",
+}
+
+ABL_METHOD_LABELS = {"focus": "DFF", "refined": "Refined"}
+
 
 def read_csv(path):
     try:
@@ -153,6 +169,85 @@ def table_rows(order, groups):
     return rows
 
 
+def fmt_param(p):
+    """'10.0' -> '10', '0.01' -> '0.01'; non-numeric left as-is."""
+    try:
+        return f"{float(p):g}"
+    except (TypeError, ValueError):
+        return str(p)
+
+
+def aggregate_ablation(path, by_method):
+    """Mean of split=='all' rows grouped by param (and method if by_method)."""
+    fields, rows = read_csv(path)
+    if not fields or not rows:
+        return [], {}
+    pcol = find_col(fields, "param")
+    if pcol is None:
+        return [], {}
+    mcol = find_col(fields, "method")
+    scol = find_col(fields, "split")
+    mcols = {m: find_col(fields, m) for m in METRICS}
+    order, groups = [], {}
+    for r in rows:
+        if scol and (r.get(scol) or "").strip().lower() != "all":
+            continue
+        param = (r.get(pcol) or "").strip()
+        if not param:
+            continue
+        method = (r.get(mcol) or "").strip().lower() if mcol else ""
+        key = (param, method) if by_method else (param,)
+        if key not in groups:
+            groups[key] = {m: [] for m in METRICS}
+            order.append(key)
+        for m, c in mcols.items():
+            if c is None:
+                continue
+            try:
+                groups[key][m].append(float((r.get(c) or "").strip()))
+            except (TypeError, ValueError):
+                continue
+    return order, groups
+
+
+def ablation_rows(name, path, by_method):
+    """Emit <tr> strings for one ablation table.
+
+    by_method tables (stack size) get a Frames + Method row head; the rest a
+    single Setting cell. A two-frame stack cannot support a parabolic peak
+    fit, so the N = 2 focus row is marked degenerate instead of printing its
+    meaningless scores.
+    """
+    order, groups = aggregate_ablation(path, by_method)
+    out = []
+    for key in order:
+        degen = False
+        if by_method:
+            param, method = key
+            head = (f"<td>{html.escape(fmt_param(param))}</td>"
+                    f"<td>{html.escape(ABL_METHOD_LABELS.get(method, method or param))}</td>")
+            degen = method == "focus" and fmt_param(param) == "2"
+        else:
+            (param,) = key
+            label = ABL_SETTING_LABELS.get(param.lower(),
+                                           html.escape(fmt_param(param)))
+            head = f"<td>{label}</td>"
+        if degen:
+            out.append(f'<tr>{head}<td colspan="3"><i>degenerate</i></td></tr>')
+            continue
+        cells = []
+        for m in METRICS:
+            vals = groups[key][m]
+            cells.append(f"{sum(vals) / len(vals):.3f}" if vals else "\u2014")
+        out.append(
+            f"<tr>{head}"
+            f'<td class="num">{cells[0]}</td>'
+            f'<td class="num">{cells[1]}</td>'
+            f'<td class="num">{cells[2]}</td></tr>'
+        )
+    return out
+
+
 def replace_region(text, name, rows):
     start = f"<!--RESULTS:{name}-->"
     end = f"<!--/RESULTS:{name}-->"
@@ -179,6 +274,17 @@ def main():
         text, ok = replace_region(text, name, table_rows(order, groups))
         if ok:
             print(f"{name}: wrote {len(order)} row(s)")
+        else:
+            print(f"{name}: markers not found in index.html, skipped")
+
+    for name, path, by_method in ABL_JOBS:
+        rows = ablation_rows(name, path, by_method)
+        if not rows:
+            print(f"{name}: no usable csv data, placeholder kept")
+            continue
+        text, ok = replace_region(text, name, rows)
+        if ok:
+            print(f"{name}: wrote {len(rows)} row(s)")
         else:
             print(f"{name}: markers not found in index.html, skipped")
 

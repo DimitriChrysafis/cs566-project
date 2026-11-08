@@ -109,6 +109,36 @@ figcaption {
   height: auto;
 }
 
+figure img,
+figure video {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+figure.stack img {
+  width: 100%;
+  margin-bottom: 0.45em;
+}
+
+figure.stack img:last-child {
+  margin-bottom: 0;
+}
+
+pre {
+  background: #f7f6f3;
+  border: 1px solid #e3e1dc;
+  padding: 0.75em 0.9em;
+  font-size: 0.82em;
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+code {
+  font-family: Menlo, Consolas, "Courier New", monospace;
+  font-size: 0.88em;
+}
+
 img.placeholder {
   display: block;
   width: 100%;
