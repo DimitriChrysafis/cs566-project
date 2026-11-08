@@ -1,10 +1,9 @@
 name: pages
 
-# publish webpage/ to GitHub Pages on every push to main
+# site deploys via ./publish.sh -> gh-pages branch (Pages source: gh-pages).
+# this workflow is kept manual-only; re-enable push trigger if the account
+# returns to actions-based deploys (build_type workflow).
 on:
-  push:
-    branches: [main]
-    paths: ["webpage/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:

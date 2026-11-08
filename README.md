@@ -60,6 +60,7 @@ experiments, in order:
     python code/experiments/run_refine_ddff.py     # full pipeline on ddff stacks
 
     python webpage/build.py                        # regenerate results tables in index.html
+    bash publish.sh                                # deploy webpage/ to github pages (gh-pages branch)
 
 the nyu scripts take `--limit N` for a quick pass and `--device` to pick
 cpu/mps/cuda. the ablation script runs one ablation per call, over the
