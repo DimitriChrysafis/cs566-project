@@ -68,8 +68,10 @@ Results on the four held-out synthetic scenes, scored in meters with no
 alignment. Raw depth from focus gets 0.233. Oracle-aligned Depth Anything gets
 0.271, worse, because our renderer is far from its training data. Our refined
 output alone gets 0.259. The combined system, which keeps the focus estimate
-when calibration is rejected, gets 0.206, the best of anything here. It beats
-both of its components.
+when calibration is rejected, gets 0.206, the best mean error of anything
+here. It is not uniformly better though: on shelves the fallback would have
+been cleaner, and delta-one is a touch below raw DFF. The honest summary is
+that it buys mean error where the stack has texture.
 
 ## Slide 8 — Failure case (3:45-4:10) — Dimitri
 
@@ -88,8 +90,8 @@ On real data we used the DDFF 12-Scene dataset. The test split ships 120 Lytro
 focal stacks but no ground truth, so this part is qualitative. Focus distances
 are not recorded either; we rebuilt them from the paper's refocus geometry.
 Real stacks have much lower confidence than synthetic ones, but with per-scene
-normalization the calibration is accepted on most stacks and the refined maps
-look plausible.
+normalization the calibration is accepted on 110 of the 120 stacks and the
+refined maps look plausible.
 
 ## Slide 10 — Takeaway (4:40-5:00) — Dimitri
 

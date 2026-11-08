@@ -175,7 +175,7 @@ q(\mathbf{x})=s\,\hat d(\mathbf{x})+t+r(\mathbf{x}),\qquad z(\mathbf{x})=q(\math
 \end{frame}
 
 % ---------- 7. Synthetic results ----------
-\begin{frame}{Held-out synthetic scenes: combined beats both parts}
+\begin{frame}{Held-out synthetic scenes: combining helps on the mean}
 \begin{columns}[T]
 \column{0.54\linewidth}
 \vspace{1mm}
@@ -201,7 +201,7 @@ Combined (ours) & \textbf{0.206} & \textbf{1.284} & 0.704 \\
 \captext{Corridor: refined depth (calibrated).}
 \begin{itemize}\setlength{\itemsep}{2pt}\footnotesize
 \item Combined $=$ refined when calibrated, focus estimate when rejected.
-\item Per scene it matches the better component; on the mean it beats both.
+\item Best mean AbsRel and RMSE of any row; $\delta_1$ is slightly below raw DFF, and shelves still favors the fallback.
 \end{itemize}
 \end{columns}
 \end{frame}
@@ -231,7 +231,7 @@ Combined (ours) & \textbf{0.206} & \textbf{1.284} & 0.704 \\
 \begin{itemize}\setlength{\itemsep}{2pt}
 \item 120 Lytro stacks, no public ground truth (withheld for the benchmark server): qualitative evaluation only.
 \item Focus distances are not recorded; we rebuilt them from the paper's refocus geometry and verified ordering per stack.
-\item Real-stack confidence is low ($\bar w\approx0.02$--0.05); per-scene confidence normalization gets calibration accepted on most stacks.
+\item Real-stack confidence is low ($\bar w\approx0.01$--0.03); per-scene confidence normalization gets calibration accepted on 110 of 120 stacks (92\%).
 \end{itemize}
 \end{frame}
 

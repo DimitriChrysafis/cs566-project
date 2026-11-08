@@ -18,7 +18,8 @@ the synthetic benchmark as a stress test, not a real-data ranking.
 We reconstructed them from the DDFF paper's refocus geometry: disparities
 linear in [0.02, 0.28] px, z approximately 0.14/d. We verified the
 frame-to-depth ordering per stack with Spearman correlation against the
-learned prior; about a third of the stacks prefer the reversed order.
+learned prior; 15 of the 120 test stacks (12%) prefer the reversed order
+(results/ddff_refine.csv).
 
 **What happens when a scene has no texture?**
 The focus curve is flat, so the confidence goes to about zero and those pixels
@@ -49,8 +50,9 @@ reported scenes were never touched during tuning. lambda = 1.0 and mu = 0.01
 sat in a flat region of the ablation.
 
 **How fast is it?**
-DA-V2 ViT-S runs about 55 ms per image on a laptop GPU. The DFF and
-refinement stages are CPU numpy over the stack and run in seconds per scene.
+DA-V2 ViT-S runs about 0.1 s per image on the laptop's GPU (105 ms mean,
+127 median over the 654 NYU test images). The DFF and refinement stages are
+CPU numpy over the stack and run in seconds per scene.
 
 **What is defocus veiling?**
 Blurred texture from a near surface bleeds over a flat region behind it and
